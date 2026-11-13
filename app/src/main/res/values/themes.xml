@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background matches the field-gray body, so there is no
+         black flash before Compose draws the first frame. -->
+    <style name="Theme.Relay" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/te_body</item>
+    </style>
+</resources>

@@ -1,0 +1,18 @@
+<!-- TE-style launcher mark: ink square "device" with an orange LED and
+     a three-segment level meter, on the field-gray background. Content
+     sits inside the 66dp adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/te_ink"
+        android:pathData="M33,33h42v42h-42z" />
+    <path
+        android:fillColor="@color/te_orange"
+        android:pathData="M39,39h8v8h-8z" />
+    <path
+        android:fillColor="#FFF5F5F1"
+        android:pathData="M39,63h6v6h-6z M49,57h6v12h-6z M59,51h6v18h-6z" />
+</vector>
