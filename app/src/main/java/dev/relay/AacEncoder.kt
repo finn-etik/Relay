@@ -88,8 +88,8 @@ class AacEncoder(
     fun stop() {
         val c = codec ?: return
         codec = null
-        try { c.stop() } catch (e: Exception) { }
-        try { c.release() } catch (e: Exception) { }
+        try { c.stop() } catch (_: Exception) {}
+        try { c.release() } catch (_: Exception) {}
     }
 
     private companion object {

@@ -30,7 +30,7 @@ object RelayState {
         _session.value = session
     }
 
-    fun say(text: String?) {
+    fun showMessage(text: String?) {
         message.value = text
     }
 }

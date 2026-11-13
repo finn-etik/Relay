@@ -33,6 +33,29 @@ Sonos (SetAVTransportURI x-rincon-mp3radio://... + Play)
 
 Capture is taken at unity gain on Android's capture path, independent of the speaker volume, which is why the phone can be muted while Sonos still receives full-level audio.
 
+## Code map
+
+All code is in `app/src/main/java/dev/relay/`.
+
+| File | What it does |
+|------|--------------|
+| `MainActivity.kt` | Permissions, the capture-consent dialog, starting/switching sessions |
+| `RelayUi.kt` | The whole UI (Compose foundation, no Material) |
+| `RelayTile.kt` | Quick Settings tile |
+| `RelayService.kt` | Foreground service: wires one session together and tears it down |
+| `CapturePipeline.kt` | Playback capture -> AAC encoder -> stream server |
+| `AacEncoder.kt`, `Adts.kt` | MediaCodec AAC-LC encoding and ADTS framing |
+| `StreamServer.kt` | Tiny HTTP server for the live stream, token-protected |
+| `SonosControl.kt` | Sonos UPnP/SOAP commands and topology parsing |
+| `SonosDiscovery.kt` | SSDP discovery |
+| `ReconnectWatchdog.kt` | Reconnects a dropped speaker; steps aside if the user picks another source |
+| `SonosVolumeKeys.kt` | Phone volume keys -> Sonos volume |
+| `PhoneVolume.kt` | Mutes the phone and always restores it |
+| `Net.kt` | Finds the Wi-Fi address and pins Sonos traffic to Wi-Fi |
+| `RelayState.kt`, `Prefs.kt`, `SonosSpeaker.kt` | Shared state, settings, data type |
+
+Unit tests for the protocol and networking parts are in `app/src/test/`.
+
 ## Build
 
 The project ships with the Gradle wrapper. You need JDK 17 and the Android SDK (Android Studio provides both).
@@ -71,7 +94,13 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - **Consent every session.** Android requires the capture dialog each time; it can't be removed.
 - **Apps can opt out of capture.** Spotify and most DRM apps block it; local players and most indie apps don't. Silent Sonos while your player shows playback means the app opted out.
 - **Latency 1-4 s.** Sonos buffers HTTP streams like radio. Fine for music, not for video.
-- **Lossy.** AAC-LC 256k is near-transparent. For more headroom set `BIT_RATE` to 320000 in `RelayService.kt`.
+- **Lossy.** AAC-LC 256k is near-transparent. For more headroom set `BIT_RATE` to 320_000 in `CapturePipeline.kt`.
 - **Volume-key routing** follows Android's active-session rules; if your player grabs it back, use the on-screen keys. Relay's media session may also receive headset play/pause presses while streaming.
 - **Same subnet required.** Guest Wi-Fi with client isolation blocks it. A VPN in "block connections without VPN" lockdown mode blocks it too.
 - **Port 8079** must be free on the phone.
+
+## Licenses and trademarks
+
+Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Relay is an independent project, not affiliated with or endorsed by Sonos, Inc. or teenage engineering AB. Sonos is a trademark of Sonos, Inc.

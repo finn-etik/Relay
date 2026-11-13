@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -118,7 +119,7 @@ class SonosControlTest {
     @Test
     fun pinnedConnectorFailureFallsBackToDefaultRoute() {
         SonosControl.lanConnector = { throw java.io.IOException("EPERM") }
-        assertEquals("", SonosControl.currentUri("127.0.0.1")?.let { "" })
+        assertNotNull(SonosControl.currentUri("127.0.0.1"))
         SonosControl.lanConnector = null
     }
 

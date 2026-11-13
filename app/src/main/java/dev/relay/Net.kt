@@ -22,7 +22,7 @@ object Net {
     fun lan(context: Context): Lan? {
         val cm = context.getSystemService(ConnectivityManager::class.java)
         @Suppress("DEPRECATION")
-        val networks = try { cm.allNetworks } catch (e: SecurityException) { emptyArray() }
+        val networks = try { cm.allNetworks } catch (_: SecurityException) { emptyArray() }
         for (network in networks) {
             val caps = cm.getNetworkCapabilities(network) ?: continue
             if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
@@ -35,7 +35,7 @@ object Net {
                 .filterIsInstance<Inet4Address>()
                 .firstOrNull { !it.isLoopbackAddress } ?: continue
             val iface = props.interfaceName?.let {
-                try { NetworkInterface.getByName(it) } catch (e: Exception) { null }
+                try { NetworkInterface.getByName(it) } catch (_: Exception) { null }
             }
             pin(network)
             return Lan(network, address, iface)
@@ -60,7 +60,7 @@ object Net {
                     .firstOrNull { !it.isLoopbackAddress } ?: continue
                 return Lan(null, address, ni)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
         }
         return null
     }

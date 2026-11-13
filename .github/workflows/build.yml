@@ -17,6 +17,9 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Public repos accept pull requests: refuse a tampered gradle-wrapper.jar.
+      - uses: gradle/actions/wrapper-validation@v4
+
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests

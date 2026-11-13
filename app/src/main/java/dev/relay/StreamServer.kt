@@ -2,6 +2,7 @@ package dev.relay
 
 import java.io.IOException
 import java.io.InputStream
+import java.net.BindException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -26,7 +27,7 @@ class StreamServer(private val port: Int, private val token: String) {
 
         fun close() {
             alive = false
-            try { socket.close() } catch (e: IOException) { }
+            try { socket.close() } catch (_: IOException) {}
         }
     }
 
@@ -49,7 +50,7 @@ class StreamServer(private val port: Int, private val token: String) {
             try {
                 socket.bind(InetSocketAddress(port))
                 break
-            } catch (e: java.net.BindException) {
+            } catch (e: BindException) {
                 if (++attempt >= 30) {
                     socket.close()
                     throw e
@@ -61,7 +62,7 @@ class StreamServer(private val port: Int, private val token: String) {
         running = true
         thread(name = "relay-accept", isDaemon = true) {
             while (running) {
-                val s = try { socket.accept() } catch (e: IOException) { break }
+                val s = try { socket.accept() } catch (_: IOException) { break }
                 thread(name = "relay-client", isDaemon = true) { serve(s) }
             }
         }
@@ -106,12 +107,12 @@ class StreamServer(private val port: Int, private val token: String) {
                 val chunk = c.queue.poll(1, TimeUnit.SECONDS) ?: continue
                 out.write(chunk)
             }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             // Listener hung up or the network dropped.
-        } catch (e: InterruptedException) {
+        } catch (_: InterruptedException) {
         } finally {
             client?.let { clients.remove(it); it.close() }
-            try { socket.close() } catch (e: IOException) { }
+            try { socket.close() } catch (_: IOException) {}
         }
     }
 
@@ -139,7 +140,7 @@ class StreamServer(private val port: Int, private val token: String) {
 
     fun stop() {
         running = false
-        try { serverSocket?.close() } catch (e: IOException) { }
+        try { serverSocket?.close() } catch (_: IOException) {}
         serverSocket = null
         for (c in clients) c.close()
         clients.clear()

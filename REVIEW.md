@@ -44,3 +44,18 @@
 
 - `SonosControl`, `StreamServer` and `Adts` compiled with Kotlin 2.0.21 and passed 17 JUnit tests (fake Sonos SOAP endpoint, real sockets): SOAP envelopes, metadata fallback, connector fallback, topology parsing, token checks, HEAD, stalled-listener drop, port rebind, ADTS bits.
 - Android-dependent files were syntax-checked only. The Android SDK and Google Maven were unreachable from the build sandbox, so the first full `./gradlew assembleRelease` (locally or via the included workflow) is the remaining check.
+
+# v1.2: readability and publication cleanup
+
+- `RelayService` (560 lines doing five jobs) split into focused classes:
+  `CapturePipeline`, `PhoneVolume`, `SonosVolumeKeys`, `ReconnectWatchdog`,
+  `Prefs`. The service now only wires a session together and tears it down.
+- `ReconnectWatchdog` is plain JVM code and now has its own tests
+  (replay after a drop or reboot, leave a paused speaker alone, hand over
+  to another source). 21 tests in total.
+- Consistent naming (`showMessage`, `startSession`/`endSession`), imports
+  instead of inline fully-qualified names, one style for ignored exceptions.
+- Removed a template packaging rule that stripped JNA's license files; Relay
+  doesn't use JNA, so the rule did nothing.
+- Added THIRD_PARTY_NOTICES.md, trademark disclaimer, code map in the
+  README, and Gradle wrapper validation in CI.

@@ -62,7 +62,7 @@ class RelayTile : TileService() {
         tile.state = if (session != null) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = getString(R.string.tile_label)
         tile.subtitle = session?.speaker?.name
-            ?: SonosDiscovery.lastSpeaker(this)?.name
+            ?: Prefs.lastSpeaker(this)?.name
             ?: "Pick a speaker in the app"
         tile.updateTile()
     }

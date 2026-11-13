@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                 askForProjection()
             } else {
                 pendingSpeaker = null
-                RelayState.say("MIC PERMISSION DENIED / ANDROID REQUIRES IT FOR AUDIO CAPTURE")
+                RelayState.showMessage("MIC PERMISSION DENIED / ANDROID REQUIRES IT FOR AUDIO CAPTURE")
             }
         }
 
@@ -62,8 +62,8 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
-        RelayService.recoverPhoneVolume(this)
-        wifiLock = RelayService.wifiLockEnabled(this)
+        PhoneVolume.recoverAfterCrash(this)
+        wifiLock = Prefs.wifiLock(this)
         savedInstanceState?.let(::restorePending)
 
         setContent {
@@ -116,11 +116,11 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(EXTRA_AUTO_START, false) != true) return
         intent.removeExtra(EXTRA_AUTO_START)
         if (RelayState.isActive) return
-        SonosDiscovery.lastSpeaker(this)?.let { select(it, fromTile = true) }
+        Prefs.lastSpeaker(this)?.let { select(it, fromTile = true) }
     }
 
     private fun select(speaker: SonosSpeaker, fromTile: Boolean = false) {
-        RelayState.say(null)
+        RelayState.showMessage(null)
         if (RelayState.isActive) {
             // Already live: just re-point the stream. No second consent.
             RelayService.switchTo(this, speaker)

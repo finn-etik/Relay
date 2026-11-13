@@ -12,8 +12,8 @@ android {
         applicationId = "dev.relay"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     buildTypes {
@@ -45,10 +45,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = false
-    }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 }
 

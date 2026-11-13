@@ -164,9 +164,15 @@ object SonosControl {
         return result.sortedBy { it.name.lowercase() }
     }
 
-    fun tag(body: String, name: String): String? =
-        Regex("<$name>(.*?)</$name>", RegexOption.DOT_MATCHES_ALL).find(body)?.groupValues?.get(1)
-            ?: if (body.contains("<$name/>")) "" else null
+    /** Text of the first <name>…</name> element; "" if empty, null if absent. */
+    fun tag(body: String, name: String): String? {
+        val match = Regex("<$name>(.*?)</$name>", RegexOption.DOT_MATCHES_ALL).find(body)
+        return when {
+            match != null -> match.groupValues[1]
+            body.contains("<$name/>") -> ""
+            else -> null
+        }
+    }
 
     fun xmlEscape(s: String): String = s
         .replace("&", "&amp;")
