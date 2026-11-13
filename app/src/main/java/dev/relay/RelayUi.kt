@@ -217,12 +217,16 @@ private fun Dots() {
             .drawWithCache {
                 val step = 26.dp.toPx()
                 val radius = 1.dp.toPx()
+                // Read the canvas size here: inside buildList, `size` would
+                // mean the list's item count.
+                val width = size.width
+                val height = size.height
                 // Built once per size and cached; never rebuilt per frame.
                 val dots = buildList {
                     var y = step
-                    while (y < size.height) {
+                    while (y < height) {
                         var x = step
-                        while (x < size.width) {
+                        while (x < width) {
                             add(Offset(x, y))
                             x += step
                         }
