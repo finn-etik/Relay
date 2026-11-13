@@ -1,11 +1,9 @@
 package dev.relay
 
-import com.sun.net.httpserver.HttpServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
@@ -21,34 +19,28 @@ class ReconnectWatchdogTest {
     @Volatile private var currentUri = ""
     @Volatile private var transport = "STOPPED"
 
-    private val fake = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-        createContext("/") { ex ->
-            val action = (ex.requestHeaders.getFirst("SOAPACTION") ?: "").substringAfter('#').trim('"')
-            ex.requestBody.readBytes()
-            actions += action
-            val reply = when (action) {
-                "GetMediaInfo" -> "<CurrentURI>${SonosControl.xmlEscape(currentUri)}</CurrentURI>"
-                "GetTransportInfo" -> "<CurrentTransportState>$transport</CurrentTransportState>"
-                else -> "<ok/>"
-            }.toByteArray()
-            ex.sendResponseHeaders(200, reply.size.toLong())
-            ex.responseBody.use { it.write(reply) }
+    private val fake = FakeSonos { rawAction, _ ->
+        val action = rawAction.substringAfter('#').trim('"')
+        actions += action
+        200 to when (action) {
+            "GetMediaInfo" -> "<CurrentURI>${SonosControl.xmlEscape(currentUri)}</CurrentURI>"
+            "GetTransportInfo" -> "<CurrentTransportState>$transport</CurrentTransportState>"
+            else -> "<ok/>"
         }
-        start()
     }
 
     // Nobody ever connects to this server, so the watchdog always sees silence.
     private val server = StreamServer(ServerSocket(0).use { it.localPort }, token).also { it.start() }
 
     init {
-        SonosControl.port = fake.address.port
+        SonosControl.port = fake.port
         SonosControl.lanConnector = null
     }
 
     @After
     fun tearDown() {
         server.stop()
-        fake.stop(0)
+        fake.close()
         SonosControl.port = 1400
     }
 

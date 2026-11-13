@@ -1,6 +1,5 @@
 package dev.relay
 
-import com.sun.net.httpserver.HttpServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,7 +8,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.net.InetSocketAddress
 import java.util.Collections
 
 class SonosControlTest {
@@ -60,18 +58,15 @@ class SonosControlTest {
 
     // ---- SOAP against a fake speaker ----
 
-    private lateinit var fake: HttpServer
+    private lateinit var fake: FakeSonos
     private val requests = Collections.synchronizedList(mutableListOf<Pair<String, String>>())
     @Volatile private var refuseMetadata = false
 
     @Before
     fun startFake() {
-        fake = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        fake.createContext("/") { ex ->
-            val action = ex.requestHeaders.getFirst("SOAPACTION") ?: ""
-            val body = ex.requestBody.readBytes().toString(Charsets.UTF_8)
+        fake = FakeSonos { action, body ->
             requests += action to body
-            val (code, reply) = when {
+            when {
                 action.endsWith("#SetAVTransportURI\"") && refuseMetadata && body.contains("DIDL-Lite") ->
                     500 to "<s:Fault/>"
                 action.endsWith("#SetRelativeVolume\"") -> 200 to "<NewVolume>37</NewVolume>"
@@ -82,18 +77,14 @@ class SonosControlTest {
                     200 to "<ZoneGroupState>${SonosControl.xmlEscape(TOPOLOGY)}</ZoneGroupState>"
                 else -> 200 to "<ok/>"
             }
-            val bytes = reply.toByteArray()
-            ex.sendResponseHeaders(code, bytes.size.toLong())
-            ex.responseBody.use { it.write(bytes) }
         }
-        fake.start()
-        SonosControl.port = fake.address.port
+        SonosControl.port = fake.port
         SonosControl.lanConnector = null
     }
 
     @After
     fun stopFake() {
-        fake.stop(0)
+        fake.close()
         SonosControl.port = 1400
     }
 
