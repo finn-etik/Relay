@@ -1,6 +1,7 @@
 # Third-party notices
 
-Relay's own code is original. It uses the components below, all under
+Relay's own code is original and licensed under the Apache License 2.0
+(see LICENSE). It uses the components below, all under
 licenses that allow use, modification and redistribution, including in a
 public repository and in distributed APKs.
 

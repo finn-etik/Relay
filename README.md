@@ -99,7 +99,9 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - **Same subnet required.** Guest Wi-Fi with client isolation blocks it. A VPN in "block connections without VPN" lockdown mode blocks it too.
 - **Port 8079** must be free on the phone.
 
-## Licenses and trademarks
+## License
+
+Relay is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 finn-etik.
 
 Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
