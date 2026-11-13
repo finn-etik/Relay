@@ -37,7 +37,7 @@
 - RESCAN key, error/status line, live Sonos volume readout, keys that invert when pressed, a scrollable speaker list.
 - Launcher icon (adaptive + themed) and a window background matching the body (no black flash); dark status-bar icons forced so they stay visible in system dark mode.
 - After a tile-initiated start, Relay moves itself to the back so you land in your player.
-- `Locale.ROOT` readout formatting (no "0,5 MB" in Swedish locale).
+- `Locale.ROOT` readout formatting (no "0,5 MB" on phones set to a comma-decimal language).
 - Gradle wrapper, unit tests, GitHub Actions APK build.
 
 ## Verified here
