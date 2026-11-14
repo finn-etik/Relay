@@ -1,10 +1,15 @@
-name: Build APK
+name: Build APKs
 
-# Push this repo to GitHub (private is fine) and every push builds a
-# ready-to-install APK: Actions tab -> latest run -> Artifacts -> relay-apk.
+# Every push to main builds Relay plus the Field apps (CAL, GATE, REEL,
+# TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
+# also published to the `apks` branch.
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write # to publish the apks branch
 
 jobs:
   build:
@@ -22,13 +27,50 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Fetch speech runtime, VAD and Parakeet manifest (REEL)
+        run: scripts/fetch-sherpa.sh
+
+      # Optional stable signing, so new builds install over old ones.
+      # Add repo secrets FIELD_KEYSTORE_B64 (base64 .jks), FIELD_KEYSTORE_PASSWORD,
+      # FIELD_KEY_ALIAS, FIELD_KEY_PASSWORD to enable. Without them: debug key.
+      - name: Signing key
+        env:
+          KS: ${{ secrets.FIELD_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/field.jks"
+            echo "FIELD_KEYSTORE_PATH=$RUNNER_TEMP/field.jks" >> "$GITHUB_ENV"
+          fi
+
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Build release APK (signed with the debug key)
+      - name: Build release APKs
+        env:
+          FIELD_KEYSTORE_PASSWORD: ${{ secrets.FIELD_KEYSTORE_PASSWORD }}
+          FIELD_KEY_ALIAS: ${{ secrets.FIELD_KEY_ALIAS }}
+          FIELD_KEY_PASSWORD: ${{ secrets.FIELD_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
+
+      - name: Collect
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/relay.apk
+          for m in cal gate reel tally; do
+            cp "$m/build/outputs/apk/release/$m-release.apk" "out/$m.apk"
+          done
+          ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: relay-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          name: apks
+          path: out/*.apk
+
+      - name: Publish to the apks branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd out
+          git init -q -b apks
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add *.apk
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -q -m "APKs for ${GITHUB_SHA::7}"
+          git push -fq "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" apks

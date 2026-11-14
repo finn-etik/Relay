@@ -6,3 +6,7 @@ local.properties
 .DS_Store
 captures/
 .kotlin/
+# Fetched by scripts/fetch-sherpa.sh
+reel/libs/
+reel/src/main/assets/silero_vad.onnx
+reel/src/main/assets/parakeet.json
