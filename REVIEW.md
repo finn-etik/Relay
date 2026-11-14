@@ -59,3 +59,50 @@
   doesn't use JNA, so the rule did nothing.
 - Added THIRD_PARTY_NOTICES.md, trademark disclaimer, code map in the
   README, and Gradle wrapper validation in CI.
+
+# Field apps: review of the supplied sources
+
+**Shared:** the four sources each pasted their own copy of the Field
+components; they now share one library (`field/`) with the accent supplied
+per app. LED and key modes are enums instead of strings (a typo used to fall
+through to "slow blink" silently). All screens now draw edge-to-edge with
+safe-area padding: targetSdk 35 forces edge-to-edge, so the originals would
+have run under the status bar.
+
+**TALLY**
+- Compile error: the keypad passed `when (label) { "CLR" -> { clr() } ... }`
+  as `onPress`, which runs the action during composition and passes `Unit`.
+- `200+10%` gave 200.1, not 220: `term()` dropped the percent flag.
+- `2e3` meant 2000 although `e` is a key for Euler's number; only uppercase
+  `E` (as the display writes it) is now an exponent.
+- `sin(180)` showed 1.22E-16 and `tan(90)` a huge number: trig noise is
+  snapped to 0 and tan at 90° is DOMAIN.
+- Log and input survive restarts and rotation.
+
+**GATE**
+- The readout never moved: the 1 s `tick` was written but never read, so
+  nothing recomposed.
+- The session only ended (and beeped) if the app stayed open on screen. It
+  now ends from an exact system alarm, shows a lock-screen countdown, survives
+  reboot, and logs persistently. The beep uses the alarm stream, so it is
+  audible even while Relay has muted media.
+
+**REEL**
+- Compile error: `ClipboardManager` was used without an import.
+- Same frozen-readout bug as GATE.
+- Live transcription ran SpeechRecognizer on the microphone while
+  MediaRecorder held it; most phones give one of them silence. That is the
+  limitation the Parakeet build removes: one AudioRecord now feeds both the
+  file and the recognizer.
+- Recording stopped (went silent) in the background: it now runs in a
+  microphone foreground service with HOLD/STOP in the notification.
+- The takes list was lost on restart; transcripts could not be made for old
+  takes; there was no way to get a recording out of the app (SHARE added).
+
+**CAL + Calendula** (merged as CAL)
+- Calendula ran on mock agendas and used Relay's orange accent.
+- CAL stored events in its own SharedPreferences and wrote state during
+  composition (`idCounter = ...` inside `remember`).
+- Now on the phone's CalendarContract calendars, with recurring events,
+  all-day events read in UTC (no off-by-one-day west of UTC), overlap lanes,
+  and confirm-to-delete. Recurring and read-only events are not editable here.

@@ -390,6 +390,8 @@ private fun ModelCard(
                 )
             }
         }
+        // CC-BY-4.0 attribution for the model weights.
+        FieldText("NVIDIA PARAKEET TDT 0.6B V3 / CC-BY-4.0 / ONNX EXPORT: SHERPA-ONNX", 8.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim)
         if (status is ParakeetModel.Status.Downloading && status.total > 0) {
             val lit = (status.done * 24 / status.total).toInt().coerceIn(0, 24)
             Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {

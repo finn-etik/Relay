@@ -1,6 +1,6 @@
-# Relay
+# Relay (and the Field apps)
 
-A tiny Android app that moves whatever your phone is playing onto a Sonos speaker on your Wi-Fi. Your player app keeps playing as usual; the phone goes silent and the sound comes out of the Sonos.
+Relay is a tiny Android app that moves whatever your phone is playing onto a Sonos speaker on your Wi-Fi. Your player app keeps playing as usual; the phone goes silent and the sound comes out of the Sonos.
 
 - One screen, one foreground service. No Material library and no third-party code: SSDP discovery, Sonos SOAP control, AAC encoding and the HTTP stream are all hand-rolled.
 - Sound plays **only on Sonos** while streaming: the phone's media volume is muted for the session and restored on stop, even after a crash.
@@ -12,6 +12,22 @@ A tiny Android app that moves whatever your phone is playing onto a Sonos speake
 - **Volume keys control the Sonos** (remote MediaSession), plus on-screen keys with a live 000-100 readout synced to the speaker's real level.
 - **Private by default**: the stream URL carries a random per-session token; anything else on the LAN gets a 403.
 - **Works with mobile data or a VPN on**: Sonos traffic is pinned to the Wi-Fi network.
+
+## Field apps in this repo
+
+Besides Relay, the repo holds four apps in the same Field Design Language,
+sharing one component library (`field/`). Each app owns one signal colour.
+
+| App | What it is | Accent |
+|-----|------------|--------|
+| **CAL** (`cal/`) | Calendar on the phone's real calendars (Google, DAVx5, local). Month grid, week strip, 24 h day timeline with a NOW line and LIVE entries, add / edit / delete, quick add (`14:30 DENTIST`). Creates an on-device "FIELD" calendar if the phone has none. | green |
+| **GATE** (`gate/`) | Focus timer. Presets 5/10/25/50, hold/resume, log. Ends on time with the app closed (exact alarm), lock-screen countdown. | blue |
+| **REEL** (`reel/`) | Voice recorder (AAC .m4a) with on-device transcription by NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected automatically. Live while recording, or afterwards for any take. One-time ~670 MB model download inside the app (Wi-Fi by default), checksum-verified, then fully offline. | red |
+| **TALLY** (`tally/`) | Calculator with scientific panel, DEG/RAD, percent convention, log. | amber |
+
+Every push to `main` builds all five APKs; they appear under the run's
+artifacts and on the `apks` branch. To build locally, run
+`scripts/fetch-sherpa.sh` once first (REEL's speech runtime is not committed).
 
 ## How it works
 

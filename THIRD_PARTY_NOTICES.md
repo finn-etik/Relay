@@ -20,6 +20,23 @@ public repository and in distributed APKs.
 Copyright for each component remains with its authors (Google LLC / The
 Android Open Source Project, JetBrains s.r.o. and contributors).
 
+## Field apps (CAL, GATE, REEL, TALLY)
+
+The Field apps use the same AndroidX / Compose / Kotlin components as above
+(Apache License 2.0). REEL additionally ships:
+
+| Component | License |
+|-----------|---------|
+| sherpa-onnx 1.13.7 runtime (`reel/libs/sherpa-onnx.aar`, fetched at build time) | Apache License 2.0, Xiaomi Corporation and contributors |
+| ONNX Runtime (inside the sherpa-onnx AAR) | MIT, Microsoft Corporation |
+| Silero VAD model (`assets/silero_vad.onnx`) | MIT, Silero Team |
+
+REEL downloads, at the user's request and not inside the APK:
+
+| Model | License |
+|-------|---------|
+| NVIDIA Parakeet TDT 0.6B v3, int8 ONNX export by the sherpa-onnx project (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`) | CC-BY-4.0, NVIDIA Corporation. Attribution is shown in REEL's model card. |
+
 ## Build and test only (not in the APK)
 
 | Component | License |
