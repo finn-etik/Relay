@@ -154,26 +154,49 @@ have run under the status bar.
 
 Moved into `dial/` as `dev.field.dial` (was `com.field.dial`), on the shared
 `field/` components instead of its own copies, with the pack's release
-build (R8, optional stable signing), adaptive icon and dark mode. minSdk is
-26 like the rest (was 24).
+build (R8, optional stable signing) and dark mode. minSdk is 26 like the
+rest (was 24).
 
+**Brought to the level of the other apps**
+- Playback moved out of the screen into `DialService`, a foreground service
+  of type mediaPlayback. In 1.1 the MediaPlayer lived in the composable:
+  Android could stop the stream once the app was in the background, and a
+  rotation was only survivable by blocking activity recreation.
+- The service asks for audio focus (stops for another player, goes silent
+  for a call or navigation prompt and returns), stops when headphones are
+  unplugged, holds a CPU wake lock and a Wi-Fi lock only while a stream is
+  wanted, and shows a notification with STOP.
+- State is one pure `DialState` with unit-tested transitions, held in
+  `DialStore` (the GATE pattern). Listening time is derived from wall-clock
+  instants instead of a one-second counter, so it is right with the screen
+  off and is no longer written to preferences every second.
+- Launcher icon: 1.1 used a plain 48 dp vector as the icon, which launchers
+  shrink onto a white plate. It is now an adaptive icon (with a themed
+  monochrome layer) like the other apps, plus a status-bar glyph.
+
+**Bugs**
 - The screen drew under the status and navigation bars (targetSdk 35 forces
   edge-to-edge and the layout had no inset padding). `FieldScreen` handles it.
 - TUNE while one station played and another was selected stopped playback
   instead of tuning the selected one.
 - The retry counter was reset by the re-tune itself, so "RETRY 01" never
   counted up, and a dead stream was retried every 3 s forever. Retries now
-  back off (3 s doubling to a minute) and the count is kept.
+  back off (3 s doubling to a minute), keep the count and keep the
+  session's airtime.
 - A stream that simply ended (no error) left the clock running on a silent
   player. It now counts as a drop.
-- Callbacks from a player that had already been replaced could flip the
-  state of the new one. They are ignored.
+- Callbacks from a player that had already been replaced or stopped could
+  flip the state of the new one. They are ignored.
 - Search: an error status from one mirror was reported as "no streams
   found" without trying the others; "unreachable" is now told apart from
   "nothing found". Typed stations are checked for duplicates like search
   results were.
-- The light/dark switch is handled without recreating the activity, so it
-  does not cut the stream.
-- Not changed: there is no foreground playback service, so Android may stop
-  the stream once the app has been in the background for a while.
 
+**Small features**
+- Sleep timer (15 / 30 / 60 minutes).
+- Reorder stations (UP / DOWN on the selected one).
+- Search results already in the list are marked SAVED.
+
+**Not done**
+- No media session: no lock-screen transport or headset-button control.
+  The notification's STOP is the only control outside the app.
