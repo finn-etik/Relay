@@ -228,14 +228,15 @@ object LoreStore {
 
             var shown = 0L
             fun write(history: List<Pair<String, String>>, sources: List<Source>): String =
-                engine.answer(Ask.system(today()), history, Ask.prompt(question, sources)) { text ->
+                engine.answer(Ask.system(today(), sources.isNotEmpty()), history, Ask.prompt(question, sources)) { text ->
                     val now = SystemClock.uptimeMillis()
                     if (now - shown >= 80) {
                         shown = now
-                        turn { it.copy(answer = Ask.clean(text)) }
+                        turn { it.copy(answer = Ask.clean(text, sources.size)) }
                     }
                 }
 
+            var used = sources
             val raw = when {
                 stopped -> ""
                 else -> try {
@@ -243,12 +244,12 @@ object LoreStore {
                 } catch (e: Throwable) {
                     // Most likely too much text for the model's context: once more with the bare minimum.
                     if (stopped || (history.isEmpty() && sources.size <= 1)) throw e
-                    val fewer = sources.take(1)
-                    turn { it.copy(sources = fewer, answer = "") }
-                    write(emptyList(), fewer)
+                    used = sources.take(1)
+                    turn { it.copy(sources = used, answer = "") }
+                    write(emptyList(), used)
                 }
             }
-            val text = Ask.clean(raw)
+            val text = Ask.clean(raw, used.size)
             turn {
                 when {
                     text.isNotEmpty() -> it.copy(answer = text, stage = if (stopped) Stage.STOPPED else Stage.DONE)

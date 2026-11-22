@@ -49,7 +49,8 @@ class ModelLiveTest {
             "content://notes/abisko-trip.md",
         ),
     )
-    private val system = Ask.system("Sunday 22 November 2026")
+    private val system = Ask.system("Sunday 22 November 2026", sourced = true)
+    private val plain = Ask.system("Sunday 22 November 2026", sourced = false)
 
     private fun exercise(id: String, mustBeRight: Boolean) {
         val model = Catalog.model(id)
@@ -88,7 +89,7 @@ class ModelLiveTest {
             val third = Ask.clean(llm.answer(system, emptyList(), Ask.prompt("How deep is Lake Vänern?", sources)) {})
             note("  [not in the sources, ${lap()} ms] $third")
 
-            val fourth = Ask.clean(llm.answer(system, emptyList(), Ask.prompt("What is the capital of Sweden?", emptyList())) {})
+            val fourth = Ask.clean(llm.answer(plain, emptyList(), Ask.prompt("What is the capital of Sweden?", emptyList())) {})
             note("  [no sources, ${lap()} ms] $fourth")
 
             val titles = Ask.titlesFrom(Ask.clean(llm.answer(Ask.TITLE_SYSTEM, emptyList(), Ask.titlePrompt("Why is the sky blue?")) {}))
@@ -114,6 +115,7 @@ class ModelLiveTest {
                 assertTrue("$id: wrong place or year: $first", first.contains("Warsaw") && first.contains("1867"))
                 assertTrue("$id: missed the note: $second", second.contains("blue", ignoreCase = true) && second.contains("18:10"))
                 assertTrue("$id: wrong capital: $fourth", fourth.contains("Stockholm"))
+                assertTrue("$id: cites a source it was not given: $fourth", '[' !in fourth)
             }
         } finally {
             llm.close()

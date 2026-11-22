@@ -122,9 +122,6 @@ out so far because turning them on needs one pass to fix what they find.
 - Dark mode (comes with item 8 above).
 
 **LORE**
-- Run the model once in CI on an emulator (the smallest model, processor
-  only) so a runtime update that breaks loading is caught before a phone
-  finds it.
 - Speak the question: REEL's speech recognition as an input key.
 - Search by meaning as well as by words (a small embedding model) for
   questions that share no word with the article that answers them.

@@ -99,7 +99,9 @@ repository's licence.
 - LORE has three tests the JVM cannot fake: `ZimZstdTest` (real Zstandard),
   and `LiveTest`, which CI runs in its own step with the network: it asks
   Hugging Face and Kiwix whether every address in the catalogue exists and
-  reads a real Kiwix archive end to end. The model itself is not run in CI.
+  reads a real Kiwix archive end to end. `ModelLiveTest` runs two of the
+  real models through `Llm.kt` on the build machine (LiteRT-LM's desktop
+  build, Java 21); the Android build and phone GPUs are not covered.
 - No instrumented tests are checked in. An emulator run in CI is possible
   and was used once to diagnose streams (see `docs/REVIEW.md`); making it a
   standing smoke test is on the roadmap.

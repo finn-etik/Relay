@@ -153,11 +153,23 @@ object Ask {
         return out
     }
 
-    fun system(today: String): String =
+    /**
+     * The standing instruction. Citing is only mentioned when there is
+     * something to cite: told about sources it does not have, a model
+     * decorates plain answers with an invented "[1]".
+     */
+    fun system(today: String, sourced: Boolean): String =
         "You are LORE, an assistant running on the user's phone without internet. Answer briefly and plainly. " +
-            "When a message comes with numbered sources, base your answer on them and cite the ones you use as [1], [2]. " +
-            "If the sources do not answer the question, say so first; whatever you then add from memory may be wrong, so mark it as from memory. " +
-            "Never invent a source or a quotation. Today is $today."
+            (
+                if (sourced) {
+                    "The message comes with numbered sources: base your answer on them and cite the ones you use as [1], [2]. " +
+                        "If the sources do not answer the question, say so first; whatever you then add from memory may be wrong, so mark it as from memory. " +
+                        "Never invent a source or a quotation. "
+                } else {
+                    "You have no sources for this message: answer from memory, do not cite anything, and say so when you are not sure. "
+                }
+                ) +
+            "Today is $today."
 
     /** The user message: the sources, numbered from 1, then the question. */
     fun prompt(question: String, sources: List<Source>): String {
@@ -187,11 +199,15 @@ object Ask {
         return out.asReversed()
     }
 
+    private val CITATION = Regex(" *(?<![A-Za-z0-9_])\\[([1-9]\\d?)]")
+
     /**
      * What to show of the model's raw output: without its private reasoning
-     * (`<think>` blocks, which some models emit, complete or still open).
+     * (`<think>` blocks, which some models emit, complete or still open),
+     * and without citations of sources that do not exist ([sources] is how
+     * many it was given).
      */
-    fun clean(raw: String): String {
+    fun clean(raw: String, sources: Int = Int.MAX_VALUE): String {
         var text = raw
         while (true) {
             val open = text.indexOf("<think>")
@@ -199,6 +215,7 @@ object Ask {
             val close = text.indexOf("</think>", open)
             text = if (close < 0) text.substring(0, open) else text.substring(0, open) + text.substring(close + 8)
         }
+        if (sources != Int.MAX_VALUE) text = CITATION.replace(text) { m -> if (m.groupValues[1].toInt() in 1..sources) m.value else "" }
         return text.trim()
     }
 

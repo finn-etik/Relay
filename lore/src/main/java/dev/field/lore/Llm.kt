@@ -10,6 +10,7 @@ import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The language model, loaded. The only file that touches LiteRT-LM, Google's
@@ -20,6 +21,9 @@ import java.util.concurrent.CountDownLatch
 class Llm private constructor(private val engine: Engine, val gpu: Boolean) {
 
     @Volatile private var running: Conversation? = null
+
+    /** When [stop] was last asked for (System.nanoTime), 0 = not during this answer. */
+    @Volatile private var stopAsked = 0L
 
     /**
      * Writes the reply to [prompt], given the [system] instruction and the
@@ -36,6 +40,7 @@ class Llm private constructor(private val engine: Engine, val gpu: Boolean) {
             samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.3),
         )
         val conversation = engine.createConversation(config)
+        stopAsked = 0
         running = conversation
         val text = StringBuilder()
         val done = CountDownLatch(1)
@@ -59,7 +64,11 @@ class Llm private constructor(private val engine: Engine, val gpu: Boolean) {
                     }
                 },
             )
-            done.await()
+            // The runtime reports the end, also after a stop. Should it ever stay silent after one, do not hang with it.
+            while (!done.await(200, TimeUnit.MILLISECONDS)) {
+                val asked = stopAsked
+                if (asked != 0L && System.nanoTime() - asked > STOP_PATIENCE) break
+            }
         } finally {
             running = null
             runCatching { conversation.close() }
@@ -72,6 +81,7 @@ class Llm private constructor(private val engine: Engine, val gpu: Boolean) {
 
     /** Ends the answer being written, if any. Safe from any thread. */
     fun stop() {
+        stopAsked = System.nanoTime()
         runCatching { running?.cancelProcess() }
     }
 
@@ -81,6 +91,8 @@ class Llm private constructor(private val engine: Engine, val gpu: Boolean) {
     }
 
     companion object {
+        private const val STOP_PATIENCE = 3_000_000_000L // nanoseconds
+
         /**
          * Loads the model file at [path]. Takes seconds (the first time on a
          * GPU, longer: the runtime compiles and caches its programs in

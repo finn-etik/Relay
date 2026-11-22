@@ -121,6 +121,14 @@ class AskTest {
         assertEquals("plain", Ask.clean("  plain "))
     }
 
+    @Test fun citationsOfSourcesThatDoNotExistAreRemoved() {
+        assertEquals("Stockholm", Ask.clean("Stockholm [1]", sources = 0))
+        assertEquals("Born in Warsaw [1], in 1867 [2].", Ask.clean("Born in Warsaw [1], in 1867 [2] [7].", sources = 2))
+        assertEquals("list[0] stays [note]", Ask.clean("list[0] stays [note]", sources = 0))
+        assertTrue(Ask.system("today", sourced = true).contains("cite"))
+        assertFalse(Ask.system("today", sourced = false).contains("[1]"))
+    }
+
     @Test fun chatTitlesAreShort() {
         assertEquals("Who was Marie Curie?", Ask.chatTitle("  Who was\tMarie Curie?\nSecond line"))
         val t = Ask.chatTitle("word ".repeat(30))

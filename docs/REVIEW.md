@@ -373,11 +373,32 @@ Design decisions, and what is and is not known to work.
 - **Notes** are read through the folder picker (the same folder PAGE
   uses). Only changed files are read again on return to the app.
 
-Verified in CI: the pure logic (archive reader against built fixtures in
-every layout, HTML to text, ranking, prompt, Markdown), real Zstandard
-streams, that the catalogue's download addresses answer, and a real Kiwix
-archive read end to end.
+- **Kotlin 2.4.0 for the whole build.** LiteRT-LM is compiled with Kotlin
+  2.4, which the 2.0.21 compiler cannot read, so every module moved. All
+  tests pass and all APKs build. Two loose ends: R8 (from AGP 8.7.3) warns
+  that it cannot parse Kotlin 2.4 metadata (harmless here, nothing uses
+  Kotlin reflection), and Kotlin warns that Gradle 8.11.1 is getting old.
+  Both go away with a newer Gradle and Android Gradle Plugin.
 
-Not verified: anything on a phone. The model has not been loaded or run;
-speed, memory use, GPU support and answer quality are untested. The
-download flow, the folder picker and every screen are untested.
+Verified in CI (`LiveTest`, `ModelLiveTest`, run against the real services):
+
+- Every model and pack address in the catalogue answers without an
+  account and supports resuming. Sizes on 2026-11-22: Gemma 4 E2B 2.6 GB,
+  Qwen3 0.6B 347 MB, Gemma 4 E4B 3.7 GB; Wikipedia full text 52.7 GB,
+  introductions 14.4 GB, top articles 2.8 GB, Wikibooks 3.5 GB.
+- A real Kiwix archive (Vikidia, 9 241 articles) is read end to end by
+  `Zim.kt` with real Zstandard, and a question gets its passages from it.
+- Qwen3 0.6B and Gemma 4 E2B load in LiteRT-LM 0.19.1 and run through
+  `Llm.kt` with LORE's prompt, on the build machine's processor (the
+  runtime's desktop build). Gemma 4 E2B answered the sourced questions
+  correctly with the right citations, said so when the sources did not
+  have the answer, proposed "Rayleigh scattering" for "why is the sky
+  blue", and stopped on request. Qwen3 0.6B runs but echoes source
+  headings and rambles: a fallback, not an equal.
+- Found this way and fixed: without sources, both models still appended
+  an invented "[1]". The instruction now mentions citing only when there
+  are sources, and citations of sources that do not exist are removed.
+
+Not verified: anything on a phone. The Android build of the runtime, the
+GPU path, speed and memory use on a phone, the download flow, the folder
+picker and every screen are untested.
