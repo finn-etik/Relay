@@ -178,6 +178,7 @@ fun FieldText(
     lineHeight: TextUnit? = null,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
+    softWrap: Boolean = true,
 ) {
     BasicText(
         text = text,
@@ -193,6 +194,7 @@ fun FieldText(
         ),
         maxLines = maxLines,
         overflow = overflow,
+        softWrap = softWrap,
     )
 }
 

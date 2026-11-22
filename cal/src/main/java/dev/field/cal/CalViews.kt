@@ -41,7 +41,7 @@ import java.time.YearMonth
 
 /** Timeline scale: 1 dp per minute (60 dp per hour), as in Calendula. */
 private const val DP_PER_MIN = 1f
-private val GUTTER = 46.dp
+private val GUTTER = 56.dp // fits "00:00" on one line up to a 1.3x system font
 
 private fun Modifier.tap(onClick: () -> Unit) = clickable(
     interactionSource = null,
@@ -184,10 +184,15 @@ fun Timeline(
             val trackWidth = maxWidth - GUTTER - 16.dp
             for (h in 0..24) {
                 val y = (h * 60 * DP_PER_MIN).dp
-                Box(Modifier.offset(x = 8.dp, y = y - 6.dp).width(GUTTER - 20.dp)) {
-                    FieldText(Fmt.pad2(h) + ":00", 10.sp, Modifier.fillMaxWidth(), color = FieldColors.Dim, align = TextAlign.End)
+                // One line always: with a larger system font the label used to wrap ("15:0 / 0").
+                Box(Modifier.offset(x = 4.dp, y = y - 6.dp).width(GUTTER - 12.dp)) {
+                    FieldText(
+                        Fmt.pad2(h) + ":00", 10.sp, Modifier.fillMaxWidth(), color = FieldColors.Dim,
+                        align = TextAlign.End, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
+                    )
                 }
-                if (h < 24) Box(Modifier.offset(x = GUTTER, y = y).fillMaxWidth().height(1.dp).background(FieldColors.Grid))
+                // Inset with padding, not offset: an offset full-width line ran out past the card's right edge.
+                if (h < 24) Box(Modifier.offset(y = y).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(1.dp).background(FieldColors.Grid))
             }
             entries.forEach { e ->
                 val (lane, count) = lanes[e.key] ?: (0 to 1)
@@ -204,8 +209,8 @@ fun Timeline(
                 )
             }
             if (nowMin != null) {
-                Box(Modifier.offset(x = GUTTER, y = (nowMin * DP_PER_MIN).dp).fillMaxWidth().height(2.dp).background(accent))
-                Box(Modifier.offset(y = (nowMin * DP_PER_MIN).dp - 16.dp).fillMaxWidth().padding(end = 6.dp), contentAlignment = Alignment.TopEnd) {
+                Box(Modifier.offset(y = (nowMin * DP_PER_MIN).dp).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(2.dp).background(accent))
+                Box(Modifier.offset(y = (nowMin * DP_PER_MIN).dp - 16.dp).fillMaxWidth().padding(end = 8.dp), contentAlignment = Alignment.TopEnd) {
                     FieldText("NOW " + Fmt.hhmm(nowMin), 10.sp, color = accent, tracking = 1.sp)
                 }
             }
