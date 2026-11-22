@@ -46,12 +46,19 @@ object Text {
         return ""
     }
 
-    /** A safe file name stem for exports. */
+    /** A readable, safe file name stem from a title: "Chapter One". */
     fun fileName(title: String): String {
-        val slug = title.lowercase().map { if (it.isLetterOrDigit()) it else '-' }.joinToString("")
-            .split('-').filter { it.isNotEmpty() }.joinToString("-")
-        return if (slug.isEmpty()) "untitled" else slug.take(48).trimEnd('-')
+        val kept = title.map { c ->
+            if (c.isLetterOrDigit() || c == ' ' || c == '-' || c == '_' || c == '\'' || c == ',' || c == '(' || c == ')') c else ' '
+        }.joinToString("")
+        val name = kept.split(' ').filter { it.isNotEmpty() }.joinToString(" ").take(60).trim()
+        return if (name.isEmpty()) "untitled" else name
     }
+
+    private val placeholder = Regex("^untitled(?:[ -]?\\(?\\d+\\)?)?$", RegexOption.IGNORE_CASE)
+
+    /** True for names PAGE gave a new note ("untitled", "untitled (2)"): those follow the title once there is one. */
+    fun isPlaceholderName(name: String): Boolean = placeholder.matches(name.substringBeforeLast('.'))
 
     // ---- focus ranges ----
 

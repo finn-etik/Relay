@@ -61,13 +61,20 @@ import kotlinx.coroutines.delay
  * Field Design Language: shared tokens and components.
  *
  * The core palette is fixed by the spec. Each app owns exactly one signal
- * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber, PAGE
- * violet), provided through [FieldTheme] and used only for live / active /
- * urgent.
+ * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber; PAGE takes a
+ * deliberately quiet sage), provided through [FieldTheme] and used only for
+ * live / active / urgent.
  */
 
-/** The five surface tones. [FieldColors.Light] is the spec; Dark is its night skin. */
-class FieldPalette(val body: Color, val paper: Color, val ink: Color, val dim: Color, val grid: Color)
+/**
+ * The surface tones. [FieldColors.Light] is the spec; Dark is its night skin.
+ * [panel] / [onPanel] are the register card: ink on the light body, a raised
+ * dark card (not an inverted light one) at night.
+ */
+class FieldPalette(
+    val body: Color, val paper: Color, val ink: Color, val dim: Color, val grid: Color,
+    val panel: Color = ink, val onPanel: Color = paper,
+)
 
 object FieldColors {
     val Light = FieldPalette(
@@ -83,6 +90,8 @@ object FieldColors {
         ink = Color(0xFFE6E6DF),
         dim = Color(0xFF7D7D76),
         grid = Color(0xFF2C2C29),
+        panel = Color(0xFF262623),
+        onPanel = Color(0xFFE6E6DF),
     )
 
     /**
@@ -96,12 +105,15 @@ object FieldColors {
     val Ink: Color get() = palette.ink
     val Dim: Color get() = palette.dim
     val Grid: Color get() = palette.grid
+    val Panel: Color get() = palette.panel
+    val OnPanel: Color get() = palette.onPanel
 
     val SignalGreen = Color(0xFF00C853)
     val SignalBlue = Color(0xFF0062FF)
     val SignalRed = Color(0xFFFF0000)
     val SignalAmber = Color(0xFFFFB000)
-    val SignalViolet = Color(0xFF7A3CFF)
+    /** PAGE: a calm accent for long writing sessions, not a signal. */
+    val Sage = Color(0xFF4F7A6B)
 }
 
 /** The current app's signal accent. */
@@ -334,7 +346,7 @@ fun StatusHeader(title: String, led: LedMode, status: String, left: String, righ
 /** Ink "register" card: the instrument's main readout. */
 @Composable
 fun RegisterPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().background(FieldColors.Ink, CardShape).padding(16.dp), content = content)
+    Column(modifier.fillMaxWidth().background(FieldColors.Panel, CardShape).padding(16.dp), content = content)
 }
 
 /** Paper card with a 1.5 dp ink border. */

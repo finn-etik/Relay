@@ -3,6 +3,7 @@ package dev.field.page
 enum class ThemeMode { AUTO, LIGHT, DARK }
 enum class FocusMode { OFF, SENTENCE, PARAGRAPH }
 enum class Face { MONO, SERIF, SANS }
+enum class Ext(val suffix: String) { MD(".md"), TXT(".txt") }
 
 data class Settings(
     val theme: ThemeMode = ThemeMode.AUTO,
@@ -12,6 +13,10 @@ data class Settings(
     val focus: FocusMode = FocusMode.SENTENCE,
     val typewriter: Boolean = true,
     val style: Boolean = false,
+    /** Tree URI of the shared notes folder; null = app storage until one is chosen. */
+    val folder: String? = null,
+    /** File type for new notes. */
+    val ext: Ext = Ext.MD,
 )
 
 /** A running timed sprint. [words] is the net count written since it began. */
@@ -24,6 +29,7 @@ data class SprintLog(val minutes: Int, val words: Int, val endedAt: Long)
  * days are local epoch days, times are epoch milliseconds, both passed in.
  */
 data class Goals(
+    /** Words per day; 0 = no goal, just a counter. */
     val target: Int = 500,
     /** Local epoch day -> net words written that day. */
     val days: Map<Long, Int> = emptyMap(),
@@ -71,7 +77,7 @@ data class Goals(
     fun cancelSprint(): Goals = if (sprint == null) this else copy(sprint = null)
 
     companion object {
-        val TARGETS = listOf(250, 500, 1000, 2000)
+        val TARGETS = listOf(0, 250, 500, 1000, 2000)
         val SPRINTS = listOf(5, 10, 15, 25)
         const val KEEP_DAYS = 400
         const val LOG_SIZE = 20

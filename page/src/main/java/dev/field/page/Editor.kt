@@ -137,9 +137,29 @@ private fun Tool(label: String, width: Int = 60, active: Boolean = false, onPres
     FieldKey(label, onPress, Modifier.width(width.dp), height = 36.dp, size = 10.sp, active = active)
 }
 
-/** The writing screen: one document, autosaved, with focus, typewriter, style check and sprints. */
+/** Opens a note, or says so plainly if its file cannot be read (it is never opened blank and overwritten). */
 @Composable
 fun Editor(id: String, state: PageState, onClose: () -> Unit) {
+    val context = LocalContext.current.applicationContext
+    val text = remember(id) { PageStore.read(context, id) }
+    if (text != null) {
+        Sheet(id, text, state, onClose)
+    } else {
+        BackHandler { onClose() }
+        Column(
+            Modifier.fillMaxSize().background(FieldColors.Paper).systemBarsPadding().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FieldText("CANNOT OPEN THIS NOTE", 14.sp)
+            FieldText("THE FILE WAS MOVED OR DELETED, OR THE FOLDER IS NO LONGER AVAILABLE.", 10.sp, color = FieldColors.Dim, lineHeight = 15.sp)
+            FieldKey("LIB", onClose, Modifier.width(72.dp), height = 40.dp, size = 11.sp)
+        }
+    }
+}
+
+/** The writing screen: one note, autosaved, with focus, typewriter, style check and sprints. */
+@Composable
+private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> Unit) {
     val activity = LocalContext.current
     val context = activity.applicationContext
     val settings = state.settings
@@ -149,10 +169,7 @@ fun Editor(id: String, state: PageState, onClose: () -> Unit) {
     val density = LocalDensity.current
     val keyboard = LocalSoftwareKeyboardController.current
 
-    var field by remember(id) {
-        val text = PageStore.read(context, id)
-        mutableStateOf(TextFieldValue(text, TextRange(text.length)))
-    }
+    var field by remember(id) { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
     var words by remember(id) { mutableIntStateOf(Text.words(field.text)) }
     var zen by rememberSaveable { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.NONE) }
@@ -184,8 +201,7 @@ fun Editor(id: String, state: PageState, onClose: () -> Unit) {
     fun set(edit: (Settings) -> Settings) = PageStore.update(context) { it.copy(settings = edit(it.settings)) }
 
     fun close() {
-        PageStore.flush(context)
-        if (field.text.isBlank()) PageStore.delete(context, id) // never keep an empty sheet
+        PageStore.settle(context, id, field.text) // save; drop an empty sheet; name the file
         onClose()
     }
 
@@ -290,7 +306,7 @@ fun Editor(id: String, state: PageState, onClose: () -> Unit) {
                         BlinkingLed(LedMode.Slow)
                         FieldText(Fmt.mmss(goals.sprintRemainingMs(now)) + " +" + sprint.words, 11.sp, maxLines = 1)
                     } else {
-                        if (goals.today(today()) >= goals.target) BlinkingLed(LedMode.Solid)
+                        if (goals.target > 0 && goals.today(today()) >= goals.target) BlinkingLed(LedMode.Solid)
                         FieldText("$words W", 11.sp, maxLines = 1)
                     }
                 }

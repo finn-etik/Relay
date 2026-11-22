@@ -25,8 +25,17 @@ class TextTest {
         assertEquals("Chapter One", Text.title("\n\n# Chapter One\nIt began."))
         assertEquals("a quote", Text.title("> a quote"))
         assertEquals("", Text.title("  \n\n"))
-        assertEquals("chapter-one", Text.fileName("Chapter One!"))
+        assertEquals("Chapter One", Text.fileName("Chapter: One!/"))
         assertEquals("untitled", Text.fileName(""))
+    }
+
+    @Test fun onlyPlaceholderNamesFollowTheTitle() {
+        for (n in listOf("untitled.md", "Untitled.txt", "untitled-2.md", "untitled (3).md", "untitled")) {
+            assertEquals(n, true, Text.isPlaceholderName(n))
+        }
+        for (n in listOf("Chapter One.md", "untitled draft.md", "notes.txt")) {
+            assertEquals(n, false, Text.isPlaceholderName(n))
+        }
     }
 
     @Test fun paragraphIsTheCursorLine() {
