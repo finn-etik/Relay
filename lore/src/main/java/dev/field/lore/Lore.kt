@@ -42,7 +42,7 @@ object Catalog {
      * the pick: the fastest model of its quality on phones, and the one the
      * runtime is tuned for. Qwen3 0.6B is the fallback for phones short on
      * memory; its file is built with a 1280-token context, hence the small
-     * budgets. Gemma 4 E4B is the ceiling the brief allows (4 billion).
+     * budgets, and in CI it answered poorly (see docs/REVIEW.md). Gemma 4 E4B is the ceiling the brief allows (4 billion).
      */
     val MODELS = listOf(
         Model(
@@ -51,7 +51,7 @@ object Catalog {
             maxTokens = 4096, sourceChars = 5000, historyChars = 2000,
         ),
         Model(
-            "qwen3-0.6b", "QWEN3 0.6B", "0.35 GB · SMALLEST, FOR OLDER PHONES",
+            "qwen3-0.6b", "QWEN3 0.6B", "0.35 GB · WEAK: ONLY IF NOTHING ELSE FITS",
             "$HF/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
             maxTokens = null, sourceChars = 1600, historyChars = 400,
         ),

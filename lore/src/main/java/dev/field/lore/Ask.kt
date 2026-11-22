@@ -215,7 +215,9 @@ object Ask {
             val close = text.indexOf("</think>", open)
             text = if (close < 0) text.substring(0, open) else text.substring(0, open) + text.substring(close + 8)
         }
-        if (sources != Int.MAX_VALUE) text = CITATION.replace(text) { m -> if (m.groupValues[1].toInt() in 1..sources) m.value else "" }
+        if (sources != Int.MAX_VALUE) {
+            text = CITATION.replace(text) { m -> if (m.groupValues[1].toInt() in 1..sources) m.value else "" }.replace(" []", "")
+        }
         return text.trim()
     }
 

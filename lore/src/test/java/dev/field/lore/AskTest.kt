@@ -123,6 +123,7 @@ class AskTest {
 
     @Test fun citationsOfSourcesThatDoNotExistAreRemoved() {
         assertEquals("Stockholm", Ask.clean("Stockholm [1]", sources = 0))
+        assertEquals("No information.", Ask.clean("No information [].", sources = 2))
         assertEquals("Born in Warsaw [1], in 1867 [2].", Ask.clean("Born in Warsaw [1], in 1867 [2] [7].", sources = 2))
         assertEquals("list[0] stays [note]", Ask.clean("list[0] stays [note]", sources = 0))
         assertTrue(Ask.system("today", sourced = true).contains("cite"))

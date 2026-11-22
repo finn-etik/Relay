@@ -393,8 +393,10 @@ Verified in CI (`LiveTest`, `ModelLiveTest`, run against the real services):
   runtime's desktop build). Gemma 4 E2B answered the sourced questions
   correctly with the right citations, said so when the sources did not
   have the answer, proposed "Rayleigh scattering" for "why is the sky
-  blue", and stopped on request. Qwen3 0.6B runs but echoes source
-  headings and rambles: a fallback, not an equal.
+  blue", and stopped on request. Qwen3 0.6B loads and runs but answers
+  badly (echoes source headings, misses a note it was given, once refused
+  a plain question): the app labels it as weak, for phones where nothing
+  else fits. A better small model is worth looking for.
 - Found this way and fixed: without sources, both models still appended
   an invented "[1]". The instruction now mentions citing only when there
   are sources, and citations of sources that do not exist are removed.
