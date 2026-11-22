@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -57,11 +58,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Light body: force dark system-bar icons regardless of system theme.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        )
+        // Follow the system light / dark setting: palette before the first
+        // frame (no light flash on a dark start), and system-bar icons that
+        // stay visible on the body. A change of setting recreates the
+        // activity, which brings us back here.
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        setRelayDark(night)
+        val bars = if (night) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         PhoneVolume.recoverAfterCrash(this)
         wifiLock = Prefs.wifiLock(this)
         savedInstanceState?.let(::restorePending)

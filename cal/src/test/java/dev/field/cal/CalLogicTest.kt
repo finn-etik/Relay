@@ -104,4 +104,15 @@ class CalLogicTest {
         assertEquals(EntryStatus.PAST, CalLogic.status(allDay(today.minusDays(1)), halfPastMidnight, zone))
         assertEquals(EntryStatus.UPCOMING, CalLogic.status(allDay(today.plusDays(1)), halfPastMidnight, zone))
     }
+
+    @Test fun dayViewWindow() {
+        fun timed(start: Int, end: Int) = Entry(1, 0, 0, "X", "", LocalDate.of(2026, 11, 22), start, end, false, 1, "", false, true)
+        assertEquals(8 to 18, CalLogic.window(emptyList(), null))
+        assertEquals(6 to 18, CalLogic.window(listOf(timed(6 * 60 + 30, 7 * 60)), null))       // early entry
+        assertEquals(8 to 23, CalLogic.window(listOf(timed(21 * 60, 22 * 60 + 15)), null))     // late entry, rounded up
+        assertEquals(8 to 24, CalLogic.window(listOf(timed(23 * 60 + 30, 23 * 60 + 45)), null)) // 40-minute block reaches midnight
+        assertEquals(8 to 22, CalLogic.window(emptyList(), 20 * 60 + 10))                       // now + 1 h
+        assertEquals(0 to 18, CalLogic.window(emptyList(), 30))                                 // just after midnight
+        assertEquals(8 to 18, CalLogic.window(listOf(Entry(1, 0, 0, "X", "", LocalDate.of(2026, 11, 22), 0, 1440, true, 1, "", false, true)), null))
+    }
 }

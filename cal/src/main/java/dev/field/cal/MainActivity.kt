@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import dev.field.ui.BlinkingLed
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldInput
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldScreen
@@ -226,7 +228,109 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
         selectedKey = null
     }
 
-    FieldScreen {
+    // Details open in the sheet at the bottom of the screen, so the calendar
+    // above stays where it is: the editor, or the tapped entry and its actions.
+    val editing = editor
+    val sheet: (@Composable ColumnScope.() -> Unit)? = when {
+        editing != null -> {
+            {
+                Editor(
+                    draft = editing,
+                    isNew = editingId == null,
+                    writable = writable,
+                    onChange = { editor = it },
+                    onCancel = { editor = null; editingId = null },
+                    onSave = {
+                        val id = editingId
+                        editor = null
+                        editingId = null
+                        if (editing.calendarId >= 0) prefs.target = editing.calendarId
+                        if (id == null) {
+                            write("ADDED") { target ->
+                                val cal = if (editing.calendarId >= 0) editing.calendarId else target
+                                cal != null && repo.insert(editing.copy(calendarId = cal)) != null
+                            }
+                        } else {
+                            write("SAVED") { _ -> repo.update(id, editing) }
+                        }
+                    },
+                )
+            }
+        }
+        selectedEntry != null -> {
+            {
+                val e = selectedEntry
+                val live = CalLogic.status(e, nowMs) == EntryStatus.LIVE
+                val editable = e.writable && !e.recurring
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (live) BlinkingLed(LedMode.Slow, size = 10.dp)
+                    FieldText(e.title.uppercase(), 16.sp, color = FieldColors.OnPanel, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                FieldText(
+                    CalLogic.stamp(e.date) + (if (e.location.isNotBlank()) " / " + e.location.uppercase() else ""),
+                    10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp,
+                )
+                FieldText(
+                    when {
+                        e.allDay -> "ALL DAY"
+                        live -> "ON NOW / ENDS " + Fmt.hhmm(e.endMin)
+                        else -> Fmt.hhmm(e.startMin) + "/" + Fmt.hhmm(e.endMin) + " / " + e.durationMin + "M"
+                    },
+                    10.sp, Modifier.padding(top = 10.dp),
+                    color = if (live) FieldColors.SignalGreen else FieldColors.OnPanel, tracking = 1.sp,
+                )
+                FieldText(
+                    e.calendarName.uppercase() + when {
+                        !e.writable -> " / READ ONLY"
+                        e.recurring -> " / REPEATS: EDIT IN SOURCE APP"
+                        else -> ""
+                    },
+                    9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim,
+                )
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FieldKey("EDIT", { openEditor(repo.draftOf(e, zone), e.eventId) }, Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = editable)
+                    FieldKey("CLOSE", { selectedKey = null }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent)
+                }
+                // Kit link: a GATE focus session as long as the entry (GATE's limit is 3 hours).
+                if (!e.allDay) {
+                    val minutes = e.durationMin.coerceIn(1, Kit.MAX_FOCUS_MINUTES)
+                    FieldKey(
+                        "FOCUS $minutes MIN IN GATE",
+                        { flash(if (Kit.startFocus(context, minutes)) "GATE: $minutes MIN SESSION STARTED" else "GATE IS NOT INSTALLED") },
+                        Modifier.fillMaxWidth().padding(top = 8.dp), height = 40.dp, size = 12.sp,
+                    )
+                }
+                // Destructive: last, plain, and it asks twice.
+                if (editable) {
+                    FieldKey(
+                        if (confirmDelete) "TAP AGAIN TO DELETE THIS ENTRY" else "DELETE",
+                        {
+                            if (!confirmDelete) {
+                                confirmDelete = true
+                                scope.launch { delay(3000); confirmDelete = false }
+                            } else {
+                                confirmDelete = false
+                                selectedKey = null
+                                write("DELETED") { _ -> repo.delete(e.eventId) }
+                            }
+                        },
+                        Modifier.fillMaxWidth().padding(top = 8.dp), height = 36.dp, size = 11.sp,
+                    )
+                }
+            }
+        }
+        else -> null
+    }
+
+    FieldScreen(
+        sheet = sheet,
+        onDismissSheet = {
+            editor = null
+            editingId = null
+            selectedKey = null
+            confirmDelete = false
+        },
+    ) {
         StatusHeader(
             title = "CAL",
             led = when {
@@ -295,6 +399,26 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
             FieldKey("MON", { view = CalView.MONTH }, Modifier.weight(1.4f), height = 40.dp, size = 12.sp, active = view == CalView.MONTH)
         }
 
+        // ---- add: above the day view, so adding never means scrolling past it ----
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val addQuick = {
+                val q = CalLogic.parseQuick(quick)
+                if (q.title.isNotBlank()) {
+                    val draft = Draft(q.title, "", selected, q.startMin ?: 0, q.durationMin, q.startMin == null, -1)
+                    quick = ""
+                    write("ADDED") { target -> target != null && repo.insert(draft.copy(calendarId = target)) != null }
+                }
+            }
+            FieldInput(quick, { quick = it }, "14:30 DENTIST", Modifier.weight(1f), onDone = addQuick)
+            FieldKey("ADD", addQuick, Modifier.width(64.dp), size = 12.sp, variant = KeyVariant.Accent)
+            FieldKey("+", {
+                val start = if (selected == today) ((nowMin / 60) + 1).coerceAtMost(23) * 60 else 9 * 60
+                openEditor(Draft("", "", selected, start, 60, false, defaultTarget() ?: -1), null)
+            }, Modifier.width(52.dp), size = 15.sp)
+        }
+        FieldText("TYPE A TIME FIRST FOR A TIMED ENTRY (14:30, OR 14:30-16:00 FOR A LENGTH), OR PRESS + FOR THE FULL EDITOR.", 9.sp, color = FieldColors.Dim)
+
+
         if (view == CalView.MONTH) {
             MonthGrid(selected, today, counts, onPick = { pick(it) })
             SectionHeader("AGENDA / " + CalLogic.stamp(selected))
@@ -302,67 +426,6 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
             else AgendaList(dayEntries, nowMs, selectedKey) { selectedKey = if (selectedKey == it.key) null else it.key }
         } else {
             WeekStrip(selected, today, counts, onPick = { pick(it) })
-            FieldToggleRow("HIDE PAST", "hide entries that already ended", hidePast) {
-                hidePast = !hidePast
-                prefs.hidePast = hidePast
-            }
-        }
-
-        // ---- selected entry ----
-        selectedEntry?.let { e ->
-            RegisterPanel {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val st = CalLogic.status(e, nowMs)
-                    if (st == EntryStatus.LIVE) BlinkingLed(LedMode.Slow, size = 10.dp)
-                    FieldText(e.title.uppercase(), 16.sp, color = FieldColors.OnPanel, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                FieldText(
-                    CalLogic.stamp(e.date) + (if (e.location.isNotBlank()) " / " + e.location.uppercase() else ""),
-                    10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp,
-                )
-                FieldText(
-                    when {
-                        e.allDay -> "ALL DAY"
-                        CalLogic.status(e, nowMs) == EntryStatus.LIVE -> "ON NOW / ENDS " + Fmt.hhmm(e.endMin)
-                        else -> Fmt.hhmm(e.startMin) + "/" + Fmt.hhmm(e.endMin) + " / " + e.durationMin + "M"
-                    },
-                    10.sp, Modifier.padding(top = 10.dp),
-                    color = if (CalLogic.status(e, nowMs) == EntryStatus.LIVE) FieldColors.SignalGreen else FieldColors.OnPanel,
-                    tracking = 1.sp,
-                )
-                FieldText(
-                    e.calendarName.uppercase() + when {
-                        !e.writable -> " / READ ONLY"
-                        e.recurring -> " / REPEATS: EDIT IN SOURCE APP"
-                        else -> ""
-                    },
-                    9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim,
-                )
-                val editable = e.writable && !e.recurring
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FieldKey("EDIT", { openEditor(repo.draftOf(e, zone), e.eventId) }, Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = editable)
-                    FieldKey(if (confirmDelete) "CONFIRM" else "DEL", {
-                        if (!confirmDelete) {
-                            confirmDelete = true
-                            scope.launch { delay(3000); confirmDelete = false }
-                        } else {
-                            confirmDelete = false
-                            selectedKey = null
-                            write("DELETED") { _ -> repo.delete(e.eventId) }
-                        }
-                    }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink, enabled = editable)
-                    FieldKey("CLOSE", { selectedKey = null }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent)
-                }
-                // Kit link: a GATE focus session as long as the entry (GATE's limit is 3 hours).
-                if (!e.allDay) {
-                    val minutes = e.durationMin.coerceIn(1, Kit.MAX_FOCUS_MINUTES)
-                    FieldKey(
-                        "FOCUS $minutes MIN IN GATE",
-                        { flash(if (Kit.startFocus(context, minutes)) "GATE: $minutes MIN SESSION STARTED" else "GATE IS NOT INSTALLED") },
-                        Modifier.fillMaxWidth().padding(top = 8.dp), height = 40.dp, size = 12.sp,
-                    )
-                }
-            }
         }
 
         // ---- day timeline ----
@@ -373,7 +436,6 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
                 EmptyCard("NO TIMED ENTRIES", "DAY IS CLEAR / TAP ARROW KEY TO SWITCH DAY.")
             } else {
                 Timeline(
-                    date = selected,
                     entries = timed,
                     nowMs = nowMs,
                     nowMin = if (selected == today) nowMin else null,
@@ -383,65 +445,25 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
             }
         }
 
-        // ---- add ----
-        SectionHeader("ADD")
-        val editing = editor
-        if (editing == null) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val addQuick = {
-                    val q = CalLogic.parseQuick(quick)
-                    if (q.title.isNotBlank()) {
-                        val draft = Draft(q.title, "", selected, q.startMin ?: 0, q.durationMin, q.startMin == null, -1)
-                        quick = ""
-                        write("ADDED") { target -> target != null && repo.insert(draft.copy(calendarId = target)) != null }
-                    }
-                }
-                FieldInput(quick, { quick = it }, "14:30 DENTIST", Modifier.weight(1f), onDone = addQuick)
-                FieldKey("ADD", addQuick, Modifier.width(64.dp), size = 12.sp, variant = KeyVariant.Accent)
-                FieldKey("+", {
-                    val start = if (selected == today) ((nowMin / 60) + 1).coerceAtMost(23) * 60 else 9 * 60
-                    openEditor(Draft("", "", selected, start, 60, false, defaultTarget() ?: -1), null)
-                }, Modifier.width(52.dp), size = 15.sp)
+        // ---- setup: rarely needed, so it starts folded ----
+        FieldFold("SETUP", (if (hidePast) "PAST HIDDEN / " else "") + "SHOWING " + (calendars.size - hidden.count { id -> calendars.any { it.id == id } }) + " OF " + calendars.size + " CALENDARS") {
+            FieldToggleRow("HIDE PAST", "hide entries that already ended", hidePast) {
+                hidePast = !hidePast
+                prefs.hidePast = hidePast
             }
-            FieldText("TYPE A TIME FIRST FOR A TIMED ENTRY (14:30, OR 14:30-16:00 FOR A LENGTH), OR PRESS + FOR THE FULL EDITOR.", 9.sp, color = FieldColors.Dim)
-        } else {
-            Editor(
-                draft = editing,
-                isNew = editingId == null,
-                writable = writable,
-                onChange = { editor = it },
-                onCancel = { editor = null; editingId = null },
-                onSave = {
-                    val d = editing
-                    val id = editingId
-                    editor = null
-                    editingId = null
-                    if (d.calendarId >= 0) prefs.target = d.calendarId
-                    if (id == null) {
-                        write("ADDED") { target ->
-                            val cal = if (d.calendarId >= 0) d.calendarId else target
-                            cal != null && repo.insert(d.copy(calendarId = cal)) != null
-                        }
-                    } else {
-                        write("SAVED") { _ -> repo.update(id, d) }
+            SectionHeader("CALENDARS")
+            if (calendars.isEmpty()) {
+                EmptyCard("NO CALENDARS", "THIS PHONE HAS NO CALENDAR ACCOUNT. THE FIRST ENTRY YOU ADD CREATES A LOCAL \"FIELD\" CALENDAR ON THE DEVICE.")
+            } else {
+                calendars.forEach { c ->
+                    FieldToggleRow(
+                        c.name.uppercase(),
+                        c.account.lowercase() + (if (!c.writable) " / read only" else "") + (if (c.id == defaultTarget()) " / new entries go here" else ""),
+                        c.id !in hidden,
+                    ) {
+                        hidden = if (c.id in hidden) hidden - c.id else hidden + c.id
+                        prefs.hidden = hidden
                     }
-                },
-            )
-        }
-
-        // ---- calendars ----
-        SectionHeader("CALENDARS")
-        if (calendars.isEmpty()) {
-            EmptyCard("NO CALENDARS", "THIS PHONE HAS NO CALENDAR ACCOUNT. THE FIRST ENTRY YOU ADD CREATES A LOCAL \"FIELD\" CALENDAR ON THE DEVICE.")
-        } else {
-            calendars.forEach { c ->
-                FieldToggleRow(
-                    c.name.uppercase(),
-                    c.account.lowercase() + (if (!c.writable) " / read only" else "") + (if (c.id == defaultTarget()) " / new entries go here" else ""),
-                    c.id !in hidden,
-                ) {
-                    hidden = if (c.id in hidden) hidden - c.id else hidden + c.id
-                    prefs.hidden = hidden
                 }
             }
         }

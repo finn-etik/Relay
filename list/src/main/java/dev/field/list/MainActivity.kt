@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldCheckRow
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldInput
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
@@ -253,32 +255,33 @@ private fun Home(state: ListState, myDay: Int, planned: Int, overdue: Int, onOpe
             }
         }
 
-        // ---- spaces ----
-        SectionHeader("SPACES")
-        PaperCard {
-            FieldText("A SPACE IS A FOLDER OF LISTS", 12.sp, tracking = 1.sp)
-            FieldText(
-                "TO SHARE LISTS: BOTH PHONES KEEP THE SAME FOLDER IN SYNC WITH A SYNC APP (FOR EXAMPLE SYNCTHING), " +
-                    "THEN EACH ADDS THAT FOLDER HERE. EVERY LIST IS A PLAIN TEXT FILE IN IT.",
-                9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
-            )
-        }
-        FieldKey("ADD A SPACE (PICK A FOLDER)", { folderPicker.launch(null) }, Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp)
-        state.spaces.filter { it.tree != null }.forEachIndexed { i, space ->
-            FieldRow(
-                index = i + 1, selected = forget == space.id,
-                onClick = {
-                    // Two taps: forgetting a space hides its lists (the files stay).
-                    if (forget == space.id) {
-                        ListStore.removeSpace(app, space.id)
-                        forget = ""
-                    } else {
-                        forget = space.id
-                    }
-                },
-                trailing = if (forget == space.id) "TAP TO CONFIRM" else "FORGET",
-            ) {
-                FieldText(space.name, 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // ---- spaces: set up once, so folded away ----
+        FieldFold("SPACES AND SHARING", Fmt.pad2(state.spaces.count { it.tree != null }) + " FOLDER SPACES") {
+            PaperCard {
+                FieldText("A SPACE IS A FOLDER OF LISTS", 12.sp, tracking = 1.sp)
+                FieldText(
+                    "TO SHARE LISTS: BOTH PHONES KEEP THE SAME FOLDER IN SYNC WITH A SYNC APP (FOR EXAMPLE SYNCTHING), " +
+                        "THEN EACH ADDS THAT FOLDER HERE. EVERY LIST IS A PLAIN TEXT FILE IN IT.",
+                    9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
+                )
+            }
+            FieldKey("ADD A SPACE (PICK A FOLDER)", { folderPicker.launch(null) }, Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp)
+            state.spaces.filter { it.tree != null }.forEachIndexed { i, space ->
+                FieldRow(
+                    index = i + 1, selected = forget == space.id,
+                    onClick = {
+                        // Two taps: forgetting a space hides its lists (the files stay).
+                        if (forget == space.id) {
+                            ListStore.removeSpace(app, space.id)
+                            forget = ""
+                        } else {
+                            forget = space.id
+                        }
+                    },
+                    trailing = if (forget == space.id) "TAP TO CONFIRM" else "FORGET",
+                ) {
+                    FieldText(space.name, 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
 
@@ -317,7 +320,22 @@ private fun TaskScreen(
         quick = ""
     }
 
-    FieldScreen {
+    // The open task and its controls live in the sheet, so opening one does not push the list around.
+    val openEntry = (open + done).firstOrNull { it.task.id == selected }
+    val sheet: (@Composable ColumnScope.() -> Unit)? = if (openEntry == null) null else {
+        { TaskDetail(openEntry, state.picks, today, onClose = { onSelect("") }) }
+    }
+
+    @Composable
+    fun rows(entries: List<Entry>) {
+        entries.forEach { e ->
+            key(e.task.id) {
+                TaskRow(e, showList, state.picks, today, selected == e.task.id) { onSelect(if (selected == e.task.id) "" else e.task.id) }
+            }
+        }
+    }
+
+    FieldScreen(sheet = sheet, onDismissSheet = { onSelect("") }) {
         StatusHeader(
             title = "LIST",
             led = if (overdue > 0) LedMode.Solid else LedMode.Off,
@@ -329,12 +347,6 @@ private fun TaskScreen(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldKey("< LISTS", onBack, Modifier.weight(1f), height = 40.dp, size = 12.sp)
             FieldKey("SYNC", { ListStore.refresh(app) }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
-            if (isList && listRef != null) {
-                FieldKey(
-                    "CLEAR DONE", { ListStore.edit(app, listRef) { it.clearDone() } },
-                    Modifier.weight(1.3f), height = 40.dp, size = 12.sp, enabled = done.isNotEmpty(),
-                )
-            }
         }
 
         if (state.notice.isNotEmpty()) {
@@ -367,37 +379,33 @@ private fun TaskScreen(
             )
         }
 
-        open.forEach { e ->
-            key(e.task.id) {
-                TaskRow(e, showList, state.picks, today, selected == e.task.id) { onSelect(if (selected == e.task.id) "" else e.task.id) }
-                if (selected == e.task.id) TaskDetail(e, state.picks, today, onClose = { onSelect("") })
-            }
-        }
-
+        rows(open)
         if (done.isNotEmpty()) {
             SectionHeader("DONE " + Fmt.pad3(done.size))
-            done.forEach { e ->
-                key(e.task.id) {
-                    TaskRow(e, showList, state.picks, today, selected == e.task.id) { onSelect(if (selected == e.task.id) "" else e.task.id) }
-                    if (selected == e.task.id) TaskDetail(e, state.picks, today, onClose = { onSelect("") })
-                }
-            }
+            rows(done)
         }
 
+        // Housekeeping for the list itself: needed now and then, so folded away.
         if (isList && listRef != null) {
-            SectionHeader("THIS LIST")
-            FieldKey(
-                if (confirmDelete) "CONFIRM: DELETE LIST AND ITS FILE" else "DELETE LIST",
-                {
-                    if (confirmDelete) {
-                        ListStore.deleteList(app, listRef)
-                        onBack()
-                    } else {
-                        confirmDelete = true
-                    }
-                },
-                Modifier.fillMaxWidth(), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink,
-            )
+            FieldFold("THIS LIST", "CLEAR DONE TASKS / DELETE THE LIST") {
+                FieldKey(
+                    "CLEAR " + Fmt.pad2(done.size) + " DONE", { ListStore.edit(app, listRef) { it.clearDone() } },
+                    Modifier.fillMaxWidth(), height = 40.dp, size = 12.sp, enabled = done.isNotEmpty(),
+                )
+                // Destructive: plain, and it asks twice.
+                FieldKey(
+                    if (confirmDelete) "TAP AGAIN TO DELETE THE LIST AND ITS FILE" else "DELETE LIST",
+                    {
+                        if (confirmDelete) {
+                            ListStore.deleteList(app, listRef)
+                            onBack()
+                        } else {
+                            confirmDelete = true
+                        }
+                    },
+                    Modifier.fillMaxWidth(), height = 36.dp, size = 11.sp,
+                )
+            }
         }
 
         SkinLine("FIELD DESIGN LANGUAGE / SKIN: SIGNAL MAGENTA / EXT: INPUT ROW, CHECK ROW")
@@ -441,9 +449,9 @@ private fun TaskRow(e: Entry, showList: Boolean, picks: Map<String, Long>, today
     }
 }
 
-/** The open task: everything that can be done to it. Shown directly under its row. */
+/** The open task: everything that can be done to it. Drawn in the screen's sheet. */
 @Composable
-private fun TaskDetail(e: Entry, picks: Map<String, Long>, today: LocalDate, onClose: () -> Unit) {
+private fun ColumnScope.TaskDetail(e: Entry, picks: Map<String, Long>, today: LocalDate, onClose: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext
     val accent = LocalAccent.current
@@ -464,114 +472,111 @@ private fun TaskDetail(e: Entry, picks: Map<String, Long>, today: LocalDate, onC
         if (ask) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
-    RegisterPanel {
-        FieldText(t.title, 16.sp, color = FieldColors.OnPanel, maxLines = 4, overflow = TextOverflow.Ellipsis)
-        FieldText(
-            listOfNotNull(
-                e.ref.name.uppercase(),
-                t.due?.let { "DUE " + Tasks.dueLabel(it, today) },
-                t.remindAt?.let { "REMIND " + Tasks.dueLabel(it.toLocalDate(), today) + " " + Fmt.pad2(it.hour) + ":" + Fmt.pad2(it.minute) },
-            ).joinToString(" / "),
-            10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp,
+    FieldText(t.title, 16.sp, color = FieldColors.OnPanel, maxLines = 4, overflow = TextOverflow.Ellipsis)
+    FieldText(
+        listOfNotNull(
+            e.ref.name.uppercase(),
+            t.due?.let { "DUE " + Tasks.dueLabel(it, today) },
+            t.remindAt?.let { "REMIND " + Tasks.dueLabel(it.toLocalDate(), today) + " " + Fmt.pad2(it.hour) + ":" + Fmt.pad2(it.minute) },
+        ).joinToString(" / "),
+        10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp,
+    )
+    if (flash.isNotEmpty()) FieldText(flash, 10.sp, Modifier.padding(top = 6.dp), color = accent, tracking = 1.sp)
+
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldKey(if (t.done) "UNDO" else "DONE", { edit { it.toggle(id) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent)
+        FieldKey("MY DAY", { ListStore.togglePick(app, id) }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = picks[id] == today.toEpochDay())
+        FieldKey("!", { edit { it.toggleImportant(id) } }, Modifier.weight(0.5f), height = 40.dp, size = 12.sp, active = t.important)
+    }
+
+    FieldText("DUE", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val from = t.due ?: today
+        FieldKey("TODAY", { edit { it.setDue(id, today) } }, Modifier.weight(1.2f), height = 36.dp, size = 10.sp, active = t.due == today)
+        FieldKey("TMRW", { edit { it.setDue(id, today.plusDays(1)) } }, Modifier.weight(1.1f), height = 36.dp, size = 10.sp, active = t.due == today.plusDays(1))
+        FieldKey("+1 D", { edit { it.setDue(id, from.plusDays(1)) } }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
+        FieldKey("+1 W", { edit { it.setDue(id, from.plusWeeks(1)) } }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
+        FieldKey("NONE", { edit { it.setDue(id, null) } }, Modifier.weight(1.1f), height = 36.dp, size = 10.sp, enabled = t.due != null)
+    }
+
+    FieldText("REMIND", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FieldKey("IN 1 H", { remind(LocalDateTime.now().plusHours(1).withSecond(0).withNano(0)) }, Modifier.weight(1.2f), height = 36.dp, size = 10.sp)
+        FieldKey(
+            "18:00",
+            {
+                val evening = LocalDateTime.of(LocalDate.now(), LocalTime.of(18, 0))
+                remind(if (evening.isAfter(LocalDateTime.now())) evening else evening.plusDays(1))
+            },
+            Modifier.weight(1f), height = 36.dp, size = 10.sp,
         )
-        if (flash.isNotEmpty()) FieldText(flash, 10.sp, Modifier.padding(top = 6.dp), color = accent, tracking = 1.sp)
+        FieldKey("TMRW 09", { remind(LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(9, 0))) }, Modifier.weight(1.3f), height = 36.dp, size = 10.sp)
+        FieldKey("NONE", { remind(null) }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = t.remindAt != null)
+    }
 
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FieldKey(if (t.done) "UNDO" else "DONE", { edit { it.toggle(id) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent)
-            FieldKey("MY DAY", { ListStore.togglePick(app, id) }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = picks[id] == today.toEpochDay())
-            FieldKey("!", { edit { it.toggleImportant(id) } }, Modifier.weight(0.5f), height = 40.dp, size = 12.sp, active = t.important)
-        }
-
-        FieldText("DUE", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            val from = t.due ?: today
-            FieldKey("TODAY", { edit { it.setDue(id, today) } }, Modifier.weight(1.2f), height = 36.dp, size = 10.sp, active = t.due == today)
-            FieldKey("TMRW", { edit { it.setDue(id, today.plusDays(1)) } }, Modifier.weight(1.1f), height = 36.dp, size = 10.sp, active = t.due == today.plusDays(1))
-            FieldKey("+1 D", { edit { it.setDue(id, from.plusDays(1)) } }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
-            FieldKey("+1 W", { edit { it.setDue(id, from.plusWeeks(1)) } }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
-            FieldKey("NONE", { edit { it.setDue(id, null) } }, Modifier.weight(1.1f), height = 36.dp, size = 10.sp, enabled = t.due != null)
-        }
-
-        FieldText("REMIND", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldKey("IN 1 H", { remind(LocalDateTime.now().plusHours(1).withSecond(0).withNano(0)) }, Modifier.weight(1.2f), height = 36.dp, size = 10.sp)
-            FieldKey(
-                "18:00",
-                {
-                    val evening = LocalDateTime.of(LocalDate.now(), LocalTime.of(18, 0))
-                    remind(if (evening.isAfter(LocalDateTime.now())) evening else evening.plusDays(1))
-                },
-                Modifier.weight(1f), height = 36.dp, size = 10.sp,
-            )
-            FieldKey("TMRW 09", { remind(LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(9, 0))) }, Modifier.weight(1.3f), height = 36.dp, size = 10.sp)
-            FieldKey("NONE", { remind(null) }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = t.remindAt != null)
-        }
-
-        FieldText("STEPS " + t.stepsDone + "/" + t.steps.size, 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
-        t.steps.forEachIndexed { i, step ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp)
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { edit { it.toggleStep(id, i) } },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(Modifier.size(18.dp).border(1.5.dp, FieldColors.OnPanel), contentAlignment = Alignment.Center) {
-                    if (step.done) Box(Modifier.size(10.dp).background(accent))
-                }
-                FieldText(
-                    step.text, 11.sp, Modifier.weight(1f), weight = FontWeight.Normal,
-                    color = if (step.done) FieldColors.Dim else FieldColors.OnPanel, lineHeight = 15.sp,
-                )
-                FieldKey("X", { edit { it.removeStep(id, i) } }, Modifier.width(32.dp), height = 28.dp, size = 10.sp)
+    FieldText("STEPS " + t.stepsDone + "/" + t.steps.size, 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
+    t.steps.forEachIndexed { i, step ->
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { edit { it.toggleStep(id, i) } },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(18.dp).border(1.5.dp, FieldColors.OnPanel), contentAlignment = Alignment.Center) {
+                if (step.done) Box(Modifier.size(10.dp).background(accent))
             }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FieldInput(text, { text = it }, "STEP, OR NEW TITLE", Modifier.weight(1f), height = 44.dp, onDone = {
-                edit { it.addStep(id, text) }
-                text = ""
-            })
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FieldKey("ADD STEP", {
-                edit { it.addStep(id, text) }
-                text = ""
-            }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = text.isNotBlank())
-            FieldKey("RENAME", {
-                val title = text
-                edit { it.rename(id, title) }
-                text = ""
-            }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = text.isNotBlank())
-        }
-
-        // ---- kit links ----
-        FieldText("KIT", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 0 minutes = whatever length GATE is set to.
-            FieldKey("FOCUS IN GATE", {
-                flash = if (Kit.startFocus(context, 0)) "GATE SESSION STARTED" else "GATE IS NOT INSTALLED"
-            }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
-            FieldKey("NOTE IN PAGE", {
-                val body = if (t.steps.isEmpty()) t.title else t.steps.joinToString("\n") { "- [" + (if (it.done) "x" else " ") + "] " + it.text }
-                if (!Kit.sendText(context, Kit.PAGE, t.title, body)) flash = "PAGE IS NOT INSTALLED"
-            }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
-        }
-
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FieldKey(
-                if (confirmDelete) "CONFIRM" else "DEL",
-                {
-                    if (confirmDelete) {
-                        edit { it.remove(id) }
-                        onClose()
-                    } else {
-                        confirmDelete = true
-                    }
-                },
-                Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink,
+            FieldText(
+                step.text, 11.sp, Modifier.weight(1f), weight = FontWeight.Normal,
+                color = if (step.done) FieldColors.Dim else FieldColors.OnPanel, lineHeight = 15.sp,
             )
-            FieldKey("CLOSE", onClose, Modifier.weight(1f), height = 40.dp, size = 12.sp)
+            FieldKey("X", { edit { it.removeStep(id, i) } }, Modifier.width(32.dp), height = 28.dp, size = 10.sp)
         }
     }
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FieldInput(text, { text = it }, "STEP, OR NEW TITLE", Modifier.weight(1f), height = 44.dp, onDone = {
+            edit { it.addStep(id, text) }
+            text = ""
+        })
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldKey("ADD STEP", {
+            edit { it.addStep(id, text) }
+            text = ""
+        }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = text.isNotBlank())
+        FieldKey("RENAME", {
+            val title = text
+            edit { it.rename(id, title) }
+            text = ""
+        }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = text.isNotBlank())
+    }
+
+    // ---- kit links ----
+    FieldText("KIT", 10.sp, Modifier.padding(top = 12.dp), color = FieldColors.Dim, tracking = 2.sp)
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 0 minutes = whatever length GATE is set to.
+        FieldKey("FOCUS IN GATE", {
+            flash = if (Kit.startFocus(context, 0)) "GATE SESSION STARTED" else "GATE IS NOT INSTALLED"
+        }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
+        FieldKey("NOTE IN PAGE", {
+            val body = if (t.steps.isEmpty()) t.title else t.steps.joinToString("\n") { "- [" + (if (it.done) "x" else " ") + "] " + it.text }
+            if (!Kit.sendText(context, Kit.PAGE, t.title, body)) flash = "PAGE IS NOT INSTALLED"
+        }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
+    }
+
+    FieldKey("CLOSE", onClose, Modifier.fillMaxWidth().padding(top = 12.dp), height = 40.dp, size = 12.sp)
+    // Destructive: last, plain, and it asks twice.
+    FieldKey(
+        if (confirmDelete) "TAP AGAIN TO DELETE THIS TASK" else "DELETE",
+        {
+            if (confirmDelete) {
+                edit { it.remove(id) }
+                onClose()
+            } else {
+                confirmDelete = true
+            }
+        },
+        Modifier.fillMaxWidth().padding(top = 8.dp), height = 36.dp, size = 11.sp,
+    )
 }

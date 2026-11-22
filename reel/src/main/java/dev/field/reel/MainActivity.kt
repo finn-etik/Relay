@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,6 +47,7 @@ import androidx.core.content.FileProvider
 import dev.field.ui.BlinkingLed
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
@@ -244,7 +246,7 @@ fun ReelApp() {
         phase == RecPhase.HOLD -> "HELD / CLOCK STOPPED"
         playing -> "PLAYBACK / TAKE " + Fmt.pad3(selNo) + " / OF " + Fmt.clock(selTake?.durationMs ?: 0L)
         asr.busyTakeId != 0 && asr.progress >= 0 -> "TRANSCRIBING " + (asr.progress * 100).toInt() + "%"
-        takes.isNotEmpty() -> "SELECT A TAKE / PLAY TO AUDITION"
+        takes.isNotEmpty() -> "TAP A TAKE FOR ITS ACTIONS"
         else -> "NO TAKES / PRESS REC"
     }
     val big = when {
@@ -261,7 +263,75 @@ fun ReelApp() {
         else -> "NO MODEL"
     }
 
-    FieldScreen {
+    // The selected take opens in the sheet with everything that can be done
+    // to it. Before, DEL sat in the transport row as the heaviest key on the
+    // screen, and the transcript appeared below the whole list of takes.
+    val sheet: (@Composable ColumnScope.() -> Unit)? = if (selTake == null) null else {
+        {
+            val take = selTake
+            val busy = asr.busyTakeId == take.id
+            val isPlaying = playingId == take.id
+            val hasText = take.transcript.isNotEmpty()
+            FieldText(
+                "TAKE " + Fmt.pad3(take.id) + " / " + stamp.format(Date(take.createdAt)).uppercase(Locale.ROOT),
+                16.sp, color = FieldColors.OnPanel, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            FieldText(
+                (if (isPlaying) "PLAYING " + Fmt.clock(playPos) + " OF " else "") + Fmt.clock(take.durationMs) + " / " + Fmt.kilobytes(take.sizeBytes),
+                10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp,
+            )
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldKey(
+                    if (isPlaying) "STOP" else "PLAY", { if (isPlaying) stop() else play() },
+                    Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent, enabled = !recording,
+                )
+                FieldKey("CLOSE", { selId = -1; confirmDel = false }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FieldKey(
+                    if (busy) "···" else if (hasText) "REDO TXT" else "TXT",
+                    { if (modelReady) Transcriber.transcribeTake(take) else flash("DOWNLOAD THE MODEL FIRST (TRANSCRIPTION SETUP)") },
+                    Modifier.weight(1.3f), height = 36.dp, size = 10.sp, enabled = !busy && !recording,
+                )
+                FieldKey(notice?.takeIf { it == "COPIED" } ?: "COPY", {
+                    context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("TRANSCRIPT", take.transcript))
+                    flash("COPIED")
+                }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = hasText)
+                // Kit link: the transcript becomes a new note in PAGE.
+                FieldKey("PAGE", {
+                    val title = "TAKE " + Fmt.pad3(take.id) + " / " + stamp.format(Date(take.createdAt)).uppercase(Locale.ROOT)
+                    if (!Kit.sendText(context, Kit.PAGE, title, take.transcript)) flash("PAGE IS NOT INSTALLED")
+                }, Modifier.weight(1f), height = 36.dp, size = 10.sp, enabled = hasText)
+                FieldKey("SHARE", { share(take) }, Modifier.weight(1f), height = 36.dp, size = 10.sp)
+            }
+            FieldText(
+                when {
+                    hasText -> take.transcript
+                    busy && asr.loading -> "LOADING MODEL…"
+                    busy -> "TRANSCRIBING " + maxOf(0, (asr.progress * 100).toInt()) + "%"
+                    modelReady -> "NOT TRANSCRIBED / PRESS TXT"
+                    else -> "NOT TRANSCRIBED / DOWNLOAD THE MODEL UNDER TRANSCRIPTION SETUP"
+                },
+                if (hasText) 11.sp else 10.sp, Modifier.fillMaxWidth().padding(top = 12.dp),
+                weight = FontWeight.Normal, color = if (hasText) FieldColors.OnPanel else FieldColors.Dim, lineHeight = 16.sp,
+            )
+            // Destructive: last, plain, and it asks twice.
+            FieldKey(
+                if (confirmDel) "TAP AGAIN TO DELETE THIS TAKE" else "DELETE",
+                { delete() },
+                Modifier.fillMaxWidth().padding(top = 12.dp), height = 36.dp, size = 11.sp,
+                enabled = !recording && !busy,
+            )
+        }
+    }
+
+    FieldScreen(
+        sheet = sheet,
+        onDismissSheet = {
+            selId = -1
+            confirmDel = false
+        },
+    ) {
         StatusHeader("REEL", led, status, left = "TAKE " + Fmt.pad3(if (recording) rec.takeId else nextTake), right = "ASR $engine")
 
         RegisterPanel {
@@ -291,37 +361,28 @@ fun ReelApp() {
             )
         }
 
+        notice?.takeIf { it != "COPIED" }?.let { FieldText("! $it", 10.sp, color = red, tracking = 1.sp) }
+
         SectionHeader("TRANSPORT")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldKey(if (phase == RecPhase.REC) "HOLD" else if (phase == RecPhase.HOLD) "RESUME" else "REC", { recKey() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Accent, enabled = !playing)
             FieldKey("PLAY", { play() }, Modifier.weight(1f), size = 12.sp, enabled = !recording && takes.isNotEmpty())
-            FieldKey("STOP", { stop() }, Modifier.weight(1f), size = 12.sp)
-            FieldKey(if (confirmDel) "SURE?" else "DEL", { delete() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Ink, enabled = selTake != null && !recording && asr.busyTakeId != selTake.id)
+            FieldKey("STOP", { stop() }, Modifier.weight(1f), size = 12.sp, enabled = recording || playing)
         }
-
-        SectionHeader("CONTROL")
-        FieldToggleRow("LIVE TXT", "parakeet v3 on device / 25 languages, auto-detected", liveTxt) {
-            liveTxt = !liveTxt
-            settings.liveTxt = liveTxt
-            if (liveTxt && !modelReady) flash("DOWNLOAD THE MODEL FIRST")
-        }
-        ModelCard(model, ParakeetModel.totalBytes(app), mobileData,
-            onDownload = { ParakeetModel.download(app, mobileData) },
-            onCancel = { ParakeetModel.cancel(app) },
-            onDelete = { ParakeetModel.delete(app) },
-            onToggleMobile = { mobileData = !mobileData; settings.mobileData = mobileData },
-        )
 
         SectionHeader("TAKES")
         if (takes.isEmpty()) {
-            EmptyCard("NO TAKES", "PRESS REC TO LOG ONE. TAP A ROW TO SELECT, PLAY TO AUDITION.")
+            EmptyCard("NO TAKES", "PRESS REC TO LOG ONE. TAP A TAKE TO PLAY, TRANSCRIBE, SHARE OR DELETE IT.")
         } else {
             takes.forEachIndexed { i, take ->
                 FieldRow(
                     index = i + 1,
                     selected = take.id == selId,
-                    onClick = { selId = take.id; confirmDel = false },
-                    trailing = Fmt.clock(take.durationMs) + " / " + Fmt.kilobytes(take.sizeBytes) + if (take.transcript.isNotEmpty()) " / TXT" else "",
+                    onClick = {
+                        selId = if (selId == take.id) -1 else take.id
+                        confirmDel = false
+                    },
+                    trailing = Fmt.clock(take.durationMs) + if (take.transcript.isNotEmpty()) " / TXT" else "",
                 ) {
                     FieldText(
                         "TAKE " + Fmt.pad3(take.id) + " / " + stamp.format(Date(take.createdAt)).uppercase(Locale.ROOT),
@@ -331,47 +392,21 @@ fun ReelApp() {
             }
         }
 
-        if (selTake != null) {
-            val busy = asr.busyTakeId == selTake.id
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionHeader("TRANSCRIPT", Modifier.weight(1f))
-                FieldKey(if (busy) "···" else "TXT", { if (modelReady) Transcriber.transcribeTake(selTake) else flash("DOWNLOAD THE MODEL FIRST") }, Modifier.width(56.dp), height = 26.dp, size = 10.sp, enabled = !busy && !recording)
-                if (selTake.transcript.isNotEmpty()) {
-                    FieldKey(notice?.takeIf { it == "COPIED" } ?: "CPY", {
-                        val cm = context.getSystemService(ClipboardManager::class.java)
-                        cm.setPrimaryClip(ClipData.newPlainText("TRANSCRIPT", selTake.transcript))
-                        flash("COPIED")
-                    }, Modifier.width(72.dp), height = 26.dp, size = 10.sp)
-                }
-                if (selTake.transcript.isNotEmpty()) {
-                    // Kit link: the transcript becomes a new note in PAGE.
-                    FieldKey("PAGE", {
-                        val title = "TAKE " + Fmt.pad3(selTake.id) + " / " + stamp.format(Date(selTake.createdAt)).uppercase(Locale.ROOT)
-                        if (!Kit.sendText(context, Kit.PAGE, title, selTake.transcript)) flash("PAGE IS NOT INSTALLED")
-                    }, Modifier.width(52.dp), height = 26.dp, size = 10.sp)
-                }
-                FieldKey("SHARE", { share(selTake) }, Modifier.width(64.dp), height = 26.dp, size = 10.sp)
+        // Set up once, then rarely touched: folded away below the takes.
+        FieldFold("TRANSCRIPTION SETUP", "LIVE TXT " + (if (liveTxt) "ON" else "OFF") + " / " + if (modelReady) "MODEL READY" else "NO MODEL YET") {
+            FieldToggleRow("LIVE TXT", "parakeet v3 on device / 25 languages, auto-detected", liveTxt) {
+                liveTxt = !liveTxt
+                settings.liveTxt = liveTxt
+                if (liveTxt && !modelReady) flash("DOWNLOAD THE MODEL FIRST")
             }
-            if (selTake.transcript.isNotEmpty()) {
-                RegisterPanel {
-                    FieldText(selTake.transcript, 11.sp, Modifier.fillMaxWidth(), weight = FontWeight.Normal, color = FieldColors.OnPanel, lineHeight = 16.sp)
-                }
-            } else {
-                PaperCard {
-                    FieldText(
-                        when {
-                            busy && asr.loading -> "LOADING MODEL…"
-                            busy -> "TRANSCRIBING " + maxOf(0, (asr.progress * 100).toInt()) + "%"
-                            modelReady -> "NOT TRANSCRIBED / PRESS TXT, OR ARM LIVE TXT BEFORE REC"
-                            else -> "NOT TRANSCRIBED / DOWNLOAD THE PARAKEET MODEL IN CONTROL"
-                        },
-                        10.sp, color = FieldColors.Dim, lineHeight = 15.sp,
-                    )
-                }
-            }
+            ModelCard(model, ParakeetModel.totalBytes(app), mobileData,
+                onDownload = { ParakeetModel.download(app, mobileData) },
+                onCancel = { ParakeetModel.cancel(app) },
+                onDelete = { ParakeetModel.delete(app) },
+                onToggleMobile = { mobileData = !mobileData; settings.mobileData = mobileData },
+            )
         }
 
-        notice?.takeIf { it != "COPIED" }?.let { FieldText("! $it", 10.sp, color = red, tracking = 1.sp) }
         SkinLine("FIELD DESIGN LANGUAGE / SKIN: SIGNAL RED / EXT: TRANSCRIPT (PARAKEET V3)")
     }
 }
@@ -431,7 +466,7 @@ private fun ModelCard(
                     FieldKey("CANCEL", onCancel, Modifier.weight(1f), height = 40.dp, size = 12.sp)
                 ParakeetModel.Status.Verifying -> Unit
                 ParakeetModel.Status.Ready ->
-                    FieldKey("DELETE MODEL", onDelete, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink)
+                    FieldKey("DELETE MODEL", onDelete, Modifier.weight(1f), height = 40.dp, size = 12.sp)
             }
         }
         if (status !is ParakeetModel.Status.Ready) {

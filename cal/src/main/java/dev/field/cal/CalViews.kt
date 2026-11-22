@@ -152,12 +152,14 @@ fun AllDayRows(entries: List<Entry>, selectedKey: String?, onSelect: (Entry) -> 
 }
 
 /**
- * 24-hour timeline. Scrolls itself to the current time (today) or the
- * first entry (other days) whenever the day changes.
+ * The day as a strip of hours with entries as blocks. It shows only the
+ * hours that matter (see CalLogic.window) at their full height, inside the
+ * page's own scroll. It used to be a fixed-height box that scrolled by
+ * itself inside the scrolling page: a finger on it moved the strip, not the
+ * page, which made it hard to get back up to the calendar.
  */
 @Composable
 fun Timeline(
-    date: LocalDate,
     entries: List<Entry>,
     nowMs: Long,
     nowMin: Int?,
@@ -165,52 +167,51 @@ fun Timeline(
     onSelect: (Entry) -> Unit,
 ) {
     val accent = LocalAccent.current
-    val scroll = rememberScrollState()
-    val density = LocalDensity.current
     val lanes = remember(entries) { CalLogic.lanes(entries) }
-    LaunchedEffect(date) {
-        val targetMin = nowMin?.minus(120) ?: (entries.minOfOrNull { it.startMin }?.minus(60) ?: 8 * 60)
-        scroll.scrollTo(with(density) { (targetMin.coerceAtLeast(0) * DP_PER_MIN).dp.roundToPx() })
-    }
+    val (firstHour, endHour) = CalLogic.window(entries, nowMin)
+    val firstMin = firstHour * 60
+    // Room above the first line for its label, below the last for a late block.
+    val top = 12.dp
+    fun y(min: Int) = top + ((min - firstMin) * DP_PER_MIN).dp
+
     Box(
         Modifier
             .fillMaxWidth()
-            .height(520.dp)
             .background(FieldColors.Paper, CardShape)
-            .border(1.5.dp, FieldColors.Ink, CardShape)
-            .verticalScroll(scroll),
+            .border(1.5.dp, FieldColors.Ink, CardShape),
     ) {
-        BoxWithConstraints(Modifier.fillMaxWidth().height((1440 * DP_PER_MIN).dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(top + ((endHour - firstHour) * 60 * DP_PER_MIN).dp + 12.dp)) {
             val trackWidth = maxWidth - GUTTER - 16.dp
-            for (h in 0..24) {
-                val y = (h * 60 * DP_PER_MIN).dp
+            for (h in firstHour..endHour) {
                 // One line always: with a larger system font the label used to wrap ("15:0 / 0").
-                Box(Modifier.offset(x = 4.dp, y = y - 6.dp).width(GUTTER - 12.dp)) {
+                Box(Modifier.offset(x = 4.dp, y = y(h * 60) - 6.dp).width(GUTTER - 12.dp)) {
                     FieldText(
                         Fmt.pad2(h) + ":00", 10.sp, Modifier.fillMaxWidth(), color = FieldColors.Dim,
                         align = TextAlign.End, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
                     )
                 }
                 // Inset with padding, not offset: an offset full-width line ran out past the card's right edge.
-                if (h < 24) Box(Modifier.offset(y = y).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(1.dp).background(FieldColors.Grid))
+                Box(Modifier.offset(y = y(h * 60)).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(1.dp).background(FieldColors.Grid))
             }
             entries.forEach { e ->
                 val (lane, count) = lanes[e.key] ?: (0 to 1)
                 val laneWidth = trackWidth / count
+                // An entry running past the window's end (into the next day) is cut at the last line.
+                val end = minOf(e.startMin + maxOf(e.durationMin, 40), endHour * 60)
                 EntryBlock(
                     entry = e,
                     status = CalLogic.status(e, nowMs),
                     selected = e.key == selectedKey,
                     modifier = Modifier
-                        .offset(x = GUTTER + 8.dp + laneWidth * lane, y = (e.startMin * DP_PER_MIN).dp)
+                        .offset(x = GUTTER + 8.dp + laneWidth * lane, y = y(e.startMin))
                         .width(laneWidth - if (count > 1) 4.dp else 0.dp)
-                        .height((maxOf(e.durationMin, 40) * DP_PER_MIN).dp),
+                        .height(((end - e.startMin).coerceAtLeast(20) * DP_PER_MIN).dp),
                     onClick = { onSelect(e) },
                 )
             }
             if (nowMin != null) {
-                Box(Modifier.offset(y = (nowMin * DP_PER_MIN).dp).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(2.dp).background(accent))
-                Box(Modifier.offset(y = (nowMin * DP_PER_MIN).dp - 16.dp).fillMaxWidth().padding(end = 8.dp), contentAlignment = Alignment.TopEnd) {
+                Box(Modifier.offset(y = y(nowMin)).fillMaxWidth().padding(start = GUTTER, end = 8.dp).height(2.dp).background(accent))
+                Box(Modifier.offset(y = y(nowMin) - 16.dp).fillMaxWidth().padding(end = 8.dp), contentAlignment = Alignment.TopEnd) {
                     FieldText("NOW " + Fmt.hhmm(nowMin), 10.sp, color = accent, tracking = 1.sp)
                 }
             }

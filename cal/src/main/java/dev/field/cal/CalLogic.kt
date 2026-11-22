@@ -144,6 +144,29 @@ object CalLogic {
         return result
     }
 
+    /**
+     * The hours the day view draws, as (first hour, end hour): 08 to 18,
+     * widened to take in every timed entry and, on today, an hour either
+     * side of now. A fixed 24-hour strip made the day view three screens
+     * long, most of it empty night.
+     */
+    fun window(entries: List<Entry>, nowMin: Int?): Pair<Int, Int> {
+        var from = 8 * 60
+        var to = 18 * 60
+        for (e in entries) {
+            if (e.allDay) continue
+            from = minOf(from, e.startMin)
+            to = maxOf(to, e.startMin + maxOf(e.durationMin, 40)) // 40: the shortest block the view draws
+        }
+        if (nowMin != null) {
+            from = minOf(from, nowMin - 60)
+            to = maxOf(to, nowMin + 60)
+        }
+        val first = from.coerceIn(0, 23 * 60) / 60
+        val end = ((to.coerceIn(60, 1440) + 59) / 60).coerceAtLeast(first + 1)
+        return first to end
+    }
+
     /** First day and day count of an all-day occurrence (UTC midnights, end exclusive). */
     fun allDaySpan(beginMs: Long, endMs: Long): Pair<LocalDate, Int> {
         val first = Instant.ofEpochMilli(beginMs).atZone(ZoneOffset.UTC).toLocalDate()

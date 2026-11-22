@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import dev.field.ui.BlinkingLed
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldInput
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
@@ -85,6 +87,13 @@ fun DialApp() {
     var urlIn by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
+    var actions by rememberSaveable { mutableStateOf(false) } // the selected station's sheet is open
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    fun clearSearch() {
+        DialStore.results.value = emptyList()
+        if (msg.endsWith("FOUND")) msg = ""
+    }
 
     // Readouts are derived from the wall clock; `now` ticks only while something counts.
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -194,7 +203,49 @@ fun DialApp() {
     }
     val air = Fmt.clock(state.airMs(now))
 
-    FieldScreen {
+    // The selected station's actions open in the sheet, so the list does not
+    // grow a row of keys under it, and delete asks twice.
+    val sheet: (@Composable ColumnScope.() -> Unit)? = if (sel == null || !actions) null else {
+        {
+            val at = state.stations.indexOf(sel)
+            val onAir = play?.id == sel.id
+            FieldText(sel.name, 16.sp, color = FieldColors.OnPanel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FieldText(sel.url, 10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldKey(
+                    if (onAir) "STOP" else "TUNE", { if (onAir) DialService.stop(app) else tune(sel) },
+                    Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent,
+                )
+                FieldKey("CLOSE", { actions = false }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldKey("MOVE UP", { update { it.move(sel.id, -1) } }, Modifier.weight(1f), height = 36.dp, size = 11.sp, enabled = at > 0)
+                FieldKey("MOVE DOWN", { update { it.move(sel.id, 1) } }, Modifier.weight(1f), height = 36.dp, size = 11.sp, enabled = at < state.stations.lastIndex)
+            }
+            // Destructive: last, plain, and it asks twice.
+            FieldKey(
+                if (confirmDelete) "TAP AGAIN TO DELETE THIS STATION" else "DELETE",
+                {
+                    if (confirmDelete) {
+                        confirmDelete = false
+                        actions = false
+                        deleteStation()
+                    } else {
+                        confirmDelete = true
+                    }
+                },
+                Modifier.fillMaxWidth().padding(top = 8.dp), height = 36.dp, size = 11.sp,
+            )
+        }
+    }
+
+    FieldScreen(
+        sheet = sheet,
+        onDismissSheet = {
+            actions = false
+            confirmDelete = false
+        },
+    ) {
         StatusHeader(
             title = "DIAL",
             led = led,
@@ -247,7 +298,7 @@ fun DialApp() {
             FieldKey("STOP", { DialService.stop(app) }, Modifier.weight(1f), size = 12.sp, enabled = phase != Phase.OFF)
         }
 
-        SectionHeader("CONTROL")
+        // Volume belongs with the transport: one row, no heading of its own.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldKey("VOL −", { update { it.volume(-1) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
             FieldKey(
@@ -257,41 +308,13 @@ fun DialApp() {
             )
             FieldKey("VOL +", { update { it.volume(1) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
         }
-        FieldToggleRow("RETRY", "auto-reconnect when a stream drops", state.retry) {
-            val on = !state.retry
-            update { it.copy(retry = on) }
-            // Switched on while a stream is down: start reconnecting now.
-            if (on && phase == Phase.ERR && play != null) DialService.tune(app, play.id)
-        }
-
-        SectionHeader("SLEEP TIMER / MINUTES")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Dial.SLEEP_MINUTES.forEach { minutes ->
-                FieldKey(
-                    Fmt.pad2(minutes),
-                    { update { it.sleepIn(System.currentTimeMillis(), minutes) } },
-                    Modifier.weight(1f), height = 40.dp, size = 12.sp,
-                    enabled = phase == Phase.ON || phase == Phase.CONNECT,
-                )
-            }
-            FieldKey(
-                "OFF", { update { it.sleepIn(0L, 0) } },
-                Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = state.sleepAt > 0L,
-            )
-        }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             SectionHeader("STATIONS")
             FieldText(msg, 10.sp, color = FieldColors.Dim, tracking = 1.sp, maxLines = 1)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FieldInput(nameIn, { nameIn = it }, "NAME", Modifier.weight(0.5f), imeAction = ImeAction.Next)
-            FieldInput(urlIn, { urlIn = it }, "STREAM URL", Modifier.weight(1f), onDone = { addStation() })
-            FieldKey("ADD", { addStation() }, Modifier.weight(0.4f), size = 12.sp, variant = KeyVariant.Accent)
-        }
-
         if (state.stations.isEmpty()) {
-            EmptyCard("NO STATIONS", "ENTER A NAME AND STREAM URL, THEN ADD. OR SEARCH THE CATALOG BELOW.")
+            EmptyCard("NO STATIONS", "SEARCH THE CATALOG BELOW AND TAP A RESULT TO SAVE IT, OR ADD A STREAM ADDRESS BY HAND.")
         } else {
             state.stations.forEachIndexed { i, st ->
                 val isSel = st.id == state.selId
@@ -299,9 +322,11 @@ fun DialApp() {
                     index = i + 1,
                     selected = isSel,
                     onClick = {
-                        // First tap selects, second tap tunes.
-                        if (isSel) tune(st) else {
+                        // First tap selects and opens the station's actions; tapping it again tunes.
+                        if (isSel && actions) tune(st) else {
                             update { it.select(st.id) }
+                            actions = true
+                            confirmDelete = false
                             msg = ""
                         }
                     },
@@ -315,20 +340,30 @@ fun DialApp() {
                     }
                 }
             }
-            if (sel != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val at = state.stations.indexOf(sel)
-                    FieldKey("UP", { update { it.move(sel.id, -1) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = at > 0)
-                    FieldKey("DOWN", { update { it.move(sel.id, 1) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = at < state.stations.lastIndex)
-                    FieldKey("DEL", { deleteStation() }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink)
-                }
-            }
         }
 
-        SectionHeader("SEARCH")
+        SectionHeader("SEARCH THE CATALOG")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FieldInput(query, { query = it }, "SEARCH STREAMS", Modifier.weight(1f), imeAction = ImeAction.Search, onDone = { runSearch() })
+            FieldInput(
+                query,
+                {
+                    query = it
+                    // The results belong to the search text: clear one, the other goes too.
+                    if (it.isBlank()) clearSearch()
+                },
+                "STATION NAME", Modifier.weight(1f), imeAction = ImeAction.Search, onDone = { runSearch() },
+            )
             FieldKey(if (searching) "···" else "GO", { runSearch() }, Modifier.weight(0.3f), size = 12.sp, variant = KeyVariant.Accent, enabled = !searching)
+        }
+        if (results.isNotEmpty()) {
+            FieldKey(
+                "CLEAR " + Fmt.pad2(results.size) + " RESULTS",
+                {
+                    query = ""
+                    clearSearch()
+                },
+                Modifier.fillMaxWidth(), height = 36.dp, size = 11.sp,
+            )
         }
         results.forEachIndexed { i, hit ->
             val saved = Dial.isSaved(hit.url, state.stations)
@@ -340,6 +375,39 @@ fun DialApp() {
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+        }
+
+        // ---- used now and then: folded away ----
+        FieldFold("ADD BY ADDRESS", "FOR A STREAM ADDRESS YOU ALREADY HAVE") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FieldInput(nameIn, { nameIn = it }, "NAME", Modifier.weight(0.5f), imeAction = ImeAction.Next)
+                FieldInput(urlIn, { urlIn = it }, "STREAM URL", Modifier.weight(1f), onDone = { addStation() })
+                FieldKey("ADD", { addStation() }, Modifier.weight(0.4f), size = 12.sp, variant = KeyVariant.Accent)
+            }
+        }
+        FieldFold("SLEEP TIMER", if (state.sleepAt > 0L) "STOPS IN " + Fmt.mmss(state.sleepRemainingMs(now)) else "OFF") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Dial.SLEEP_MINUTES.forEach { minutes ->
+                    FieldKey(
+                        "$minutes MIN",
+                        { update { it.sleepIn(System.currentTimeMillis(), minutes) } },
+                        Modifier.weight(1f), height = 40.dp, size = 12.sp,
+                        enabled = phase == Phase.ON || phase == Phase.CONNECT,
+                    )
+                }
+                FieldKey(
+                    "OFF", { update { it.sleepIn(0L, 0) } },
+                    Modifier.weight(1f), height = 40.dp, size = 12.sp, enabled = state.sleepAt > 0L,
+                )
+            }
+        }
+        FieldFold("SETUP", "AUTO RETRY " + if (state.retry) "ON" else "OFF") {
+            FieldToggleRow("RETRY", "auto-reconnect when a stream drops", state.retry) {
+                val on = !state.retry
+                update { it.copy(retry = on) }
+                // Switched on while a stream is down: start reconnecting now.
+                if (on && phase == Phase.ERR && play != null) DialService.tune(app, play.id)
             }
         }
 

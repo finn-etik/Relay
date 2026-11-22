@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,13 +46,59 @@ import java.util.Locale
 
 // Teenage Engineering inspired: field-gray body, ink-black rules,
 // signal-orange LEDs, square corners, monospace technical labels.
+//
+// Two palettes, light and dark. Relay predates the shared Field library and
+// kept its own fixed light colours, so it never had a dark mode: there was
+// nothing to switch. The tones below now read the active palette.
 
-private val TeBody = Color(0xFFDADAD4)
-private val TePaper = Color(0xFFF5F5F1)
-private val TeInk = Color(0xFF191919)
-private val TeDim = Color(0xFF6E6E67) // darkened from 8A8A82 for contrast on gray
+private class Palette(
+    val body: Color, val paper: Color, val ink: Color, val dim: Color, val grid: Color,
+    /** The active-session card and what is written on it. */
+    val panel: Color, val onPanel: Color, val panelDim: Color,
+)
+
+private val LightPalette = Palette(
+    body = Color(0xFFDADAD4),
+    paper = Color(0xFFF5F5F1),
+    ink = Color(0xFF191919),
+    dim = Color(0xFF6E6E67), // darkened from 8A8A82 for contrast on gray
+    grid = Color(0xFFC4C4BC),
+    panel = Color(0xFF191919),
+    onPanel = Color(0xFFF5F5F1),
+    panelDim = Color(0xFFC4C4BC),
+)
+
+private val DarkPalette = Palette(
+    body = Color(0xFF121211),
+    paper = Color(0xFF1C1C1A),
+    ink = Color(0xFFE6E6DF),
+    dim = Color(0xFF8C8C85),
+    grid = Color(0xFF2C2C29),
+    // A raised dark card, not the light palette's ink card inverted.
+    panel = Color(0xFF262623),
+    onPanel = Color(0xFFE6E6DF),
+    panelDim = Color(0xFF8C8C85),
+)
+
+/** Snapshot state: everything drawn with the tones below follows a change. */
+private var palette by mutableStateOf(LightPalette)
+
+/** Called by MainActivity before the first frame and whenever the system setting changes. */
+fun setRelayDark(dark: Boolean) {
+    palette = if (dark) DarkPalette else LightPalette
+}
+
+private val TeBody: Color get() = palette.body
+private val TePaper: Color get() = palette.paper
+private val TeInk: Color get() = palette.ink
+private val TeDim: Color get() = palette.dim
+private val TeGrid: Color get() = palette.grid
+private val TePanel: Color get() = palette.panel
+private val TeOnPanel: Color get() = palette.onPanel
+private val TePanelDim: Color get() = palette.panelDim
 private val TeOrange = Color(0xFFFF3C00)
-private val TeGrid = Color(0xFFC4C4BC)
+/** Text on an orange key: dark in both modes. */
+private val TeOnOrange = Color(0xFF191919)
 private val Corner = RoundedCornerShape(4.dp)
 private val SmallCorner = RoundedCornerShape(3.dp)
 
@@ -70,6 +117,9 @@ fun RelayScreen(
     val message by RelayState.message.collectAsState()
     val volume by RelayState.volume.collectAsState()
     val live = session
+
+    val dark = isSystemInDarkTheme()
+    LaunchedEffect(dark) { setRelayDark(dark) }
 
     Box(
         Modifier
@@ -251,21 +301,21 @@ private fun ActivePanel(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(TeInk, Corner)
+            .background(TePanel, Corner)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BlinkingLed(TeOrange, size = 10, onTime = 250, offTime = 750)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Label(session.speaker.name.uppercase(), TePaper, 16, FontWeight.Bold)
-                Label("AAC 256K / LIVE", TeGrid, 10, spacing = 1f)
+                Label(session.speaker.name.uppercase(), TeOnPanel, 16, FontWeight.Bold)
+                Label("AAC 256K / LIVE", TePanelDim, 10, spacing = 1f)
             }
-            Key("STOP", onStop, fill = TeOrange, ink = TeInk)
+            Key("STOP", onStop, fill = TeOrange, ink = TeOnOrange)
         }
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Label("SONOS VOL", TeGrid, 10, FontWeight.Bold, spacing = 1f)
+            Label("SONOS VOL", TePanelDim, 10, FontWeight.Bold, spacing = 1f)
             Spacer(Modifier.width(10.dp))
             Label(
                 if (volume >= 0) volume.toString().padStart(3, '0') else "---",

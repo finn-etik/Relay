@@ -3,6 +3,6 @@
     <!-- Window background matches the field-gray body, so there is no
          black flash before Compose draws the first frame. -->
     <style name="Theme.Relay" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/te_body</item>
+        <item name="android:windowBackground">@color/te_window</item>
     </style>
 </resources>

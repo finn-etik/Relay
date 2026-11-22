@@ -279,3 +279,68 @@ reminder plus an hourly look-in when a shared space is connected.
 Not verified on a device: the folder picker with a real sync app, reminder
 timing, and the links between installed apps.
 
+# Screen review: clutter and navigation
+
+Every screen was read for the same faults; the shared causes were fixed in
+`field/` and written into AGENTS.md as rules.
+
+**Shared (`field/`)**
+- `FieldScreen(sheet = ...)`: a detail sheet over the bottom of the screen.
+  Opening a detail no longer inserts a panel into the page and shifts
+  everything under the finger. The page stays scrollable behind it and is
+  padded so its last rows clear the sheet; Back closes it.
+- `FieldFold`: a closed-by-default section with its state in the caption.
+- Launcher icons used the body colour as their plate, which the dark-mode
+  work made near-black at night under a dark glyph. The plate has its own
+  colour now and stays light.
+
+**CAL**
+- Tapping an entry inserted its panel above the day view, pushing the
+  calendar down; EDIT then opened the editor far below, off screen. Both
+  open in the sheet.
+- The day view was a 520 dp box that scrolled by itself inside the scrolling
+  page: a finger on it moved the strip, not the page. It now shows only the
+  hours that matter (08 to 18, widened to the day's entries and to now) at
+  full height in the page's one scroll (`CalLogic.window`).
+- Quick add sits under the navigation keys instead of below the day view.
+- HIDE PAST and the calendar list are in a SETUP fold.
+- DELETE is last, plain, and asks twice.
+
+**REEL**
+- DEL sat in the transport row as a solid black key, the heaviest thing on
+  screen, next to REC and PLAY. A take's actions (play, transcribe, copy,
+  to PAGE, share, delete) and its transcript open in the sheet when the take
+  is tapped; before, the transcript appeared below the whole list.
+- LIVE TXT and the model card are in a TRANSCRIPTION SETUP fold.
+- Messages show under the register instead of at the very bottom.
+
+**DIAL**
+- Search results stayed after the search text was deleted. They clear with
+  the text, and there is a CLEAR RESULTS key.
+- A station's actions (tune, move, delete) open in the sheet; delete had no
+  confirmation and now asks twice.
+- Volume sits with the transport. Add-by-address, sleep timer and retry are
+  folds, with their state in the caption.
+
+**GATE**
+- START was below the length settings and STOP carried the accent. The
+  transport is first, START carries the accent, BEEP is in a SETUP fold.
+
+**PAGE**
+- Files, daily goal and appearance are folds showing the current choice;
+  only "choose a folder" stays in the open, until one is chosen.
+
+**LIST**
+- A task's detail opens in the sheet instead of unfolding inside the list.
+- List housekeeping and space management are folds; deletes are plain and
+  ask twice.
+
+**RELAY**
+- No dark mode: its colours were six fixed constants, so there was nothing
+  to switch (it predates the shared library). It has a light and a dark
+  palette now and follows the system setting, including the system bars
+  and the launch window.
+
+Not verified on a device: the sheet's behaviour with the keyboard open and
+on small screens, and how the dark RELAY screen looks.
+

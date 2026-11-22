@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
@@ -229,54 +230,61 @@ fun Library(state: PageState, onOpen: (String) -> Unit) {
             }
         }
 
-        SectionHeader("FILES")
-        PaperCard {
-            FieldText(folder?.uppercase() ?: "APP STORAGE", 12.sp, tracking = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            FieldText(
-                if (folder != null) "EVERY NOTE IS A PLAIN FILE IN THIS FOLDER. OTHER APPS CAN OPEN, SYNC AND MOVE THEM."
-                else "NOTES ARE PRIVATE TO PAGE FOR NOW. CHOOSE A FOLDER AND THEY MOVE THERE AS PLAIN FILES OTHER APPS CAN OPEN.",
-                9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
-            )
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // ---- set once, changed rarely: folded away, with the current choice in the caption ----
+        if (folder == null) {
+            // Until a folder is chosen this is the one setting worth showing openly.
             FieldKey(
-                if (folder == null) "CHOOSE FOLDER" else "CHANGE FOLDER",
-                { notice = ""; folderPicker.launch(null) },
-                Modifier.weight(2f), height = 40.dp, size = 12.sp,
-                variant = if (folder == null) KeyVariant.Accent else KeyVariant.Paper,
+                "CHOOSE A FOLDER FOR YOUR NOTES", { notice = ""; folderPicker.launch(null) },
+                Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp, variant = KeyVariant.Accent,
             )
-            Ext.entries.forEach { e ->
-                FieldKey(e.suffix.uppercase(), { set { it.copy(ext = e) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.ext == e)
-            }
         }
-
-        SectionHeader("DAILY GOAL")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Goals.TARGETS.forEach { t ->
-                FieldKey(
-                    if (t == 0) "OFF" else "$t",
-                    { PageStore.update(context) { it.copy(goals = it.goals.copy(target = t)) } },
-                    Modifier.weight(1f), height = 40.dp, size = 12.sp, active = goals.target == t,
+        FieldFold("FILES", (folder?.uppercase() ?: "APP STORAGE") + " / NEW NOTES AS " + settings.ext.suffix.uppercase()) {
+            PaperCard {
+                FieldText(folder?.uppercase() ?: "APP STORAGE", 12.sp, tracking = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                FieldText(
+                    if (folder != null) "EVERY NOTE IS A PLAIN FILE IN THIS FOLDER. OTHER APPS CAN OPEN, SYNC AND MOVE THEM."
+                    else "NOTES ARE PRIVATE TO PAGE FOR NOW. CHOOSE A FOLDER AND THEY MOVE THERE AS PLAIN FILES OTHER APPS CAN OPEN.",
+                    9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
                 )
             }
-        }
-
-        SectionHeader("PAPER")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ThemeMode.entries.forEach { m ->
-                FieldKey(m.name, { set { it.copy(theme = m) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.theme == m)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldKey(
+                    if (folder == null) "CHOOSE FOLDER" else "CHANGE FOLDER",
+                    { notice = ""; folderPicker.launch(null) },
+                    Modifier.weight(2f), height = 40.dp, size = 12.sp,
+                    variant = if (folder == null) KeyVariant.Accent else KeyVariant.Paper,
+                )
+                Ext.entries.forEach { e ->
+                    FieldKey(e.suffix.uppercase(), { set { it.copy(ext = e) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.ext == e)
+                }
             }
         }
-
-        SectionHeader("TYPE")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Face.entries.forEach { f ->
-                FieldKey(f.name, { set { it.copy(face = f) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.face == f)
+        FieldFold("DAILY GOAL", if (goals.target > 0) goals.target.toString() + " WORDS" else "OFF") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Goals.TARGETS.forEach { t ->
+                    FieldKey(
+                        if (t == 0) "OFF" else "$t",
+                        { PageStore.update(context) { it.copy(goals = it.goals.copy(target = t)) } },
+                        Modifier.weight(1f), height = 40.dp, size = 12.sp, active = goals.target == t,
+                    )
+                }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("SMALL", "MEDIUM", "LARGE").forEachIndexed { i, label ->
-                FieldKey(label, { set { it.copy(size = i) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.size == i)
+        FieldFold("APPEARANCE", settings.theme.name + " / " + settings.face.name + " / " + listOf("SMALL", "MEDIUM", "LARGE")[settings.size.coerceIn(0, 2)]) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeMode.entries.forEach { m ->
+                    FieldKey(m.name, { set { it.copy(theme = m) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.theme == m)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Face.entries.forEach { f ->
+                    FieldKey(f.name, { set { it.copy(face = f) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.face == f)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("SMALL", "MEDIUM", "LARGE").forEachIndexed { i, label ->
+                    FieldKey(label, { set { it.copy(size = i) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.size == i)
+                }
             }
         }
 

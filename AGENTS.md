@@ -80,6 +80,32 @@ Rules that follow from this:
 - Text that must stay on one line says so (`maxLines = 1`, and
   `softWrap = false` for fixed labels): users run larger system fonts.
 
+### Screen layout: keep it calm
+
+These came out of a review of every screen; they are the difference between
+"works" and "easy to use". Follow them for new screens.
+
+- **Opening something must not move the page.** The details of a tapped
+  thing (a calendar entry, a take, a station, a task) and any editor go in
+  `FieldScreen(sheet = ...)`, drawn over the bottom of the screen. Never
+  insert a panel above the list the user is looking at.
+- **The main action comes first.** Order a screen: status, the one or two
+  things people open the app to do, the list of their things, then
+  everything else. Settings never sit above the main action.
+- **Fold away what is set once.** Settings, management and rarely used
+  tools go in a `FieldFold`, closed by default, with the current state in
+  its caption so it seldom needs opening.
+- **Destructive keys are quiet.** DELETE is the last key in a sheet or
+  fold, in the plain (Paper) variant, never `KeyVariant.Ink`, and it asks
+  twice (the label changes to "TAP AGAIN TO DELETE ..."). It is never next
+  to a key used often.
+- **One scroll.** Nothing scrolls vertically inside the page's own scroll;
+  a finger on a nested scroller cannot move the page. Show the part that
+  matters at full height instead (CAL's day view shows only relevant hours).
+- **What a field produced leaves with it.** Search results are cleared when
+  the search text is, and get an explicit CLEAR key.
+- **Captions say state, not instructions,** wherever there is state to say.
+
 ## Links between apps
 
 Apps never depend on each other in Gradle. They hand off at run time through

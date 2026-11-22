@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="te_body">#FFDADAD4</color>
+    <!-- Window background while the app starts: dark at night (values-night). -->
+    <color name="te_window">#FFDADAD4</color>
     <color name="te_ink">#FF191919</color>
     <color name="te_orange">#FFFF3C00</color>
 </resources>

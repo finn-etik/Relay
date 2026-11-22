@@ -4,22 +4,26 @@ import android.content.res.Configuration
 import android.graphics.Color.TRANSPARENT
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,8 +41,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -47,6 +53,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -164,6 +172,7 @@ fun ComponentActivity.fieldContent(accent: Color, accentOnDark: Color = accent, 
 
 private val KeyShape = RoundedCornerShape(3.dp)
 val CardShape = RoundedCornerShape(4.dp)
+private val SheetShape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
 
 // ---------------------------------------------------------------- text
 
@@ -306,6 +315,38 @@ fun FieldToggleRow(label: String, caption: String, checked: Boolean, onToggle: (
     }
 }
 
+/**
+ * A section that starts closed: for what is needed now and then (settings,
+ * management), so it does not sit between the user and the main controls.
+ * [caption] should say the current state, so opening it is rarely needed.
+ */
+@Composable
+fun ColumnScope.FieldFold(title: String, caption: String = "", content: @Composable ColumnScope.() -> Unit) {
+    var open by rememberSaveable(title) { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(FieldColors.Paper, CardShape)
+            .border(1.5.dp, FieldColors.Ink, CardShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = { open = !open },
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            FieldText(title, 12.sp, tracking = 1.sp)
+            if (caption.isNotEmpty()) FieldText(caption, 9.sp, color = FieldColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        FieldText(if (open) "CLOSE" else "OPEN", 10.sp, color = FieldColors.Dim, tracking = 1.sp)
+    }
+    if (open) content()
+}
+
 // ---------------------------------------------------------------- surfaces
 
 /** 26 dp dot grid, positions computed once per size. */
@@ -328,13 +369,25 @@ fun Modifier.fieldGrid(): Modifier = drawWithCache {
 }
 
 /**
- * Standard app body: gray dotted field, safe-area and keyboard padding,
- * a centered column at most 420 dp wide. [scroll] = false for screens that
- * manage their own scrolling (e.g. a timeline).
+ * Screen scaffold: body colour, dot grid, system-bar and keyboard insets,
+ * and one column at most 420 dp wide. [scroll] = false for screens that
+ * manage their own scrolling.
+ *
+ * [sheet] is the place for details: the thing the user just tapped (a
+ * calendar entry, a take, a task). It is drawn over the bottom of the
+ * screen, so opening it never moves the page; the page behind stays
+ * scrollable and tappable, and is padded so its last rows can still be
+ * scrolled clear of the sheet. Back closes it ([onDismissSheet]).
  */
 @Composable
-fun FieldScreen(scroll: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    Box(
+fun FieldScreen(
+    scroll: Boolean = true,
+    sheet: (@Composable ColumnScope.() -> Unit)? = null,
+    onDismissSheet: () -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BackHandler(enabled = sheet != null, onBack = onDismissSheet)
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(FieldColors.Body)
@@ -343,6 +396,10 @@ fun FieldScreen(scroll: Boolean = true, content: @Composable ColumnScope.() -> U
             .imePadding(),
         contentAlignment = Alignment.TopCenter,
     ) {
+        val sheetLimit = maxHeight * 0.62f
+        var sheetHeightPx by remember { mutableIntStateOf(0) }
+        val reserve = if (sheet != null) with(LocalDensity.current) { sheetHeightPx.toDp() } else 0.dp
+
         val base = Modifier.fillMaxSize().let { if (scroll) it.verticalScroll(rememberScrollState()) else it }
         Column(base.padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(
@@ -350,6 +407,27 @@ fun FieldScreen(scroll: Boolean = true, content: @Composable ColumnScope.() -> U
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
             )
+            if (scroll) Spacer(Modifier.height(reserve))
+        }
+
+        if (sheet != null) {
+            Column(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .widthIn(max = 468.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = sheetLimit)
+                    .onSizeChanged { sheetHeightPx = it.height }
+                    .background(FieldColors.Panel, SheetShape)
+                    // Taps on the sheet's own background must not reach the page under it.
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+            ) {
+                Box(Modifier.fillMaxWidth().height(3.dp).background(LocalAccent.current))
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
+                    content = sheet,
+                )
+            }
         }
     }
 }

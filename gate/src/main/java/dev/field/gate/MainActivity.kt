@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import dev.field.ui.BlinkingLed
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
+import dev.field.ui.FieldFold
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
@@ -154,7 +155,15 @@ fun GateApp() {
             )
         }
 
-        SectionHeader("CONTROL")
+        // The action first: starting a session must not sit below its settings.
+        SectionHeader("TRANSPORT")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FieldKey(if (phase == Phase.HOLD) "RESUME" else "START", { start() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Accent, enabled = phase != Phase.ON)
+            FieldKey("HOLD", { GateStore.hold(context) }, Modifier.weight(1f), size = 12.sp, enabled = phase == Phase.ON)
+            FieldKey("STOP", { GateStore.stop(context) }, Modifier.weight(1f), size = 12.sp, enabled = phase != Phase.STANDBY)
+        }
+
+        SectionHeader("LENGTH")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GateState.PRESETS.forEach { p ->
                 FieldKey(
@@ -179,15 +188,10 @@ fun GateApp() {
                 )
             }
         }
-        FieldToggleRow("BEEP", "audio cue at session end, also with the app closed", state.beep) {
-            GateStore.toggleBeep(context)
-        }
-
-        SectionHeader("TRANSPORT")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FieldKey(if (phase == Phase.HOLD) "RESUME" else "START", { start() }, Modifier.weight(1f), size = 12.sp, enabled = phase != Phase.ON)
-            FieldKey("HOLD", { GateStore.hold(context) }, Modifier.weight(1f), size = 12.sp, enabled = phase == Phase.ON)
-            FieldKey("STOP", { GateStore.stop(context) }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Accent)
+        FieldFold("SETUP", "BEEP " + if (state.beep) "ON" else "OFF") {
+            FieldToggleRow("BEEP", "audio cue at session end, also with the app closed", state.beep) {
+                GateStore.toggleBeep(context)
+            }
         }
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
