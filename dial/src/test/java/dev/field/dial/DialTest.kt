@@ -103,4 +103,16 @@ class DialTest {
         assertEquals(0L, d.sleepRemainingMs(16 * 60 * s))
         assertEquals(0L, d.sleepIn(0, 0).sleepAt)
     }
+
+    @Test fun nextAndPreviousWrapRoundTheList() {
+        val c = Station(3, "C", "https://c.example/stream")
+        val d = DialState(stations = listOf(a, b, c))
+        assertEquals(b, d.neighbour(1, 1))
+        assertEquals(a, d.neighbour(3, 1))   // past the end: back to the first
+        assertEquals(c, d.neighbour(1, -1))  // before the first: the last
+        assertEquals(a, d.neighbour(99, 1))  // nothing current: next is the first
+        assertEquals(c, d.neighbour(-1, -1))
+        assertEquals(a, DialState(stations = listOf(a)).neighbour(1, 1))
+        assertNull(DialState().neighbour(1, 1))
+    }
 }

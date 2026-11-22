@@ -92,6 +92,18 @@ data class DialState(
         return copy(stations = list)
     }
 
+    /**
+     * The station [by] places after (+1) or before (-1) [id], wrapping round
+     * the list: what "next" and "previous" on a headset mean for a radio.
+     * With no current station, next is the first and previous the last.
+     */
+    fun neighbour(id: Int, by: Int): Station? {
+        if (stations.isEmpty()) return null
+        val at = stations.indexOfFirst { it.id == id }
+        if (at < 0) return if (by >= 0) stations.first() else stations.last()
+        return stations[(at + by).mod(stations.size)]
+    }
+
     /** A volume key also lifts the mute. */
     fun volume(delta: Int): DialState = copy(vol = (vol + delta).coerceIn(0, Dial.MAX_VOLUME), muted = false)
 

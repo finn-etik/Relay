@@ -197,6 +197,17 @@ rest (was 24).
 - Reorder stations (UP / DOWN on the selected one).
 - Search results already in the list are marked SAVED.
 
+**Media session (lock screen and headset control)**
+- `DialService` publishes a framework `MediaSession` and a media-style
+  notification: play / pause, stop, next and previous station work from the
+  lock screen, the notification shade and headset or Bluetooth buttons.
+- A live stream cannot be paused in place: PAUSE drops the connection and
+  PLAY reconnects to the same station. The paused service waits ten minutes
+  for PLAY, then shuts down.
+- Losing audio focus to another player, or unplugging headphones, now
+  pauses (resumable) instead of stopping.
+- Next / previous walk the saved station list and wrap round.
+
 **Not done**
-- No media session: no lock-screen transport or headset-button control.
-  The notification's STOP is the only control outside the app.
+- A headset button does not start DIAL cold: once the service has shut down
+  (STOP, or ten minutes paused) playback starts from the app again.
