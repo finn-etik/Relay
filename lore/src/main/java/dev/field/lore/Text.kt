@@ -192,7 +192,7 @@ object Passages {
     /** Sections at the end of an encyclopedia article that hold no prose. */
     private val END = setOf(
         "references", "external links", "see also", "notes", "further reading", "bibliography", "citations",
-        "sources", "footnotes", "works cited", "notes and references",
+        "sources", "footnotes", "works cited", "notes and references", "related pages",
     )
 
     /**

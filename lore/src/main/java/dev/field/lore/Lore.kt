@@ -25,8 +25,13 @@ data class Pack(val id: String, val name: String, val caption: String, val dir: 
     val listing: String get() = "${Catalog.KIWIX}$dir/"
 }
 
-/** A pack as currently published. [size] is the listing's own wording ("43G"), or empty. */
-data class Remote(val file: String, val url: String, val size: String)
+/**
+ * A pack as currently published. [size] is the listing's own wording
+ * ("43G"), or empty; [bytes] the exact length once the server was asked.
+ */
+data class Remote(val file: String, val url: String, val size: String, val bytes: Long = -1) {
+    val sizeLabel: String get() = if (bytes > 0) Format.bytes(bytes) else size
+}
 
 object Catalog {
     const val KIWIX = "https://download.kiwix.org/zim/"
@@ -46,7 +51,7 @@ object Catalog {
             maxTokens = 4096, sourceChars = 5000, historyChars = 2000,
         ),
         Model(
-            "qwen3-0.6b", "QWEN3 0.6B", "SMALLEST · FOR OLDER PHONES",
+            "qwen3-0.6b", "QWEN3 0.6B", "0.35 GB · SMALLEST, FOR OLDER PHONES",
             "$HF/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
             maxTokens = null, sourceChars = 1600, historyChars = 400,
         ),
@@ -141,10 +146,11 @@ object Chats {
 }
 
 object Format {
+    /** Sizes in decimal units (1 GB = 1000 MB), as the phone's own storage screen counts them. */
     fun bytes(n: Long): String = when {
-        n >= 1L shl 30 -> oneDecimal(n / (1L shl 30).toDouble()) + " GB"
-        n >= 1L shl 20 -> "${n shr 20} MB"
-        n >= 1L shl 10 -> "${n shr 10} KB"
+        n >= 1_000_000_000L -> oneDecimal(n / 1e9) + " GB"
+        n >= 1_000_000L -> "${n / 1_000_000L} MB"
+        n >= 1_000L -> "${n / 1_000L} KB"
         else -> "$n B"
     }
 

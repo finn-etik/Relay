@@ -67,16 +67,18 @@ jobs:
           path: out/*.apk
 
       # LORE downloads its model and knowledge packs from Hugging Face and
-      # Kiwix. This asks both whether the catalogue's addresses still exist,
-      # and reads a real (small) Kiwix archive with LORE's own reader. It
-      # needs the network, so a failure here does not hold up the APKs:
-      # read the step's log.
-      - name: LORE live checks (download sources, a real archive)
+      # Kiwix. This step asks both whether the catalogue's addresses still
+      # exist, reads a real (small) Kiwix archive with LORE's own reader,
+      # and runs two of the models on this machine's processor through
+      # LORE's own code. It needs the network and downloads about 3 GB, so
+      # a failure here does not hold up the APKs: read the step's log.
+      - name: LORE live checks (download sources, a real archive, real models)
         continue-on-error: true
+        timeout-minutes: 40
         env:
           LORE_LIVE: "1"
         run: |
-          ./gradlew --no-daemon :lore:testDebugUnitTest --rerun --tests 'dev.field.lore.LiveTest' || status=$?
+          ./gradlew --no-daemon :lore:testDebugUnitTest --rerun --tests 'dev.field.lore.*LiveTest' || status=$?
           cat lore/build/lore-live.txt || true
           exit ${status:-0}
 

@@ -623,10 +623,14 @@ private fun ColumnScope.PackSheet(state: State, pack: Pack, onClose: () -> Unit)
             )
         }
         else -> {
-            SheetNote(remote.file.removeSuffix(".zim").uppercase() + (if (remote.size.isNotEmpty()) " · ${remote.size}" else "") + " · FREE ON THIS PHONE: " + Format.bytes(state.freeBytes))
+            val size = remote.sizeLabel
+            val tooLarge = remote.bytes > 0 && remote.bytes > state.freeBytes
+            SheetNote(remote.file.removeSuffix(".zim").uppercase() + (if (size.isNotEmpty()) " · $size" else "") + " · FREE ON THIS PHONE: " + Format.bytes(state.freeBytes))
+            if (tooLarge) FieldText("NOT ENOUGH FREE STORAGE FOR THIS PACK", 10.sp, Modifier.padding(top = 6.dp), color = LocalAccent.current, tracking = 1.sp)
             FieldKey(
-                "DOWNLOAD" + if (remote.size.isNotEmpty()) " ${remote.size}" else "",
-                { LoreStore.getPack(pack.id) }, Modifier.fillMaxWidth().padding(top = 12.dp), height = 44.dp, size = 11.sp, variant = KeyVariant.Accent,
+                "DOWNLOAD" + if (size.isNotEmpty()) " $size" else "",
+                { LoreStore.getPack(pack.id) }, Modifier.fillMaxWidth().padding(top = 12.dp), height = 44.dp, size = 11.sp,
+                variant = KeyVariant.Accent, enabled = !tooLarge,
             )
             SheetNote(if (state.metered) "MOBILE DATA IS ALLOWED (SETUP)." else "WI-FI ONLY. IT CONTINUES IN THE BACKGROUND AND RESUMES AFTER A BREAK.")
         }

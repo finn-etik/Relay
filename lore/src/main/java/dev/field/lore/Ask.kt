@@ -45,6 +45,8 @@ class NotesIndex(val chunks: List<NoteChunk>) {
 object Ask {
     private const val MAX_GRAM = 4
     private const val MAX_LOOKUPS = 60
+    private const val MIN_PASSAGE = 60
+    private const val MAX_QUOTES = 5
 
     /** A run of the question's words that may be an article title, in the spellings worth trying. */
     data class Candidate(val from: Int, val to: Int, val spellings: List<String>)
@@ -129,9 +131,10 @@ object Ask {
         val items = articles.flatMap { a -> a.passages.mapIndexed { i, p -> Item(a, p, i == 0) } }
         if (items.isEmpty()) return emptyList()
         val index = Bm25(items.map { Words.tokens("${it.article.title} ${it.passage.heading} ${it.passage.text}") })
-        val ranked = index.search(Words.terms(question), 12).map { items[it.doc] }
+        // Very short passages are link lists and "see also" lines: they match well and say nothing.
+        val ranked = index.search(Words.terms(question), 12).map { items[it.doc] }.filter { it.passage.text.length >= MIN_PASSAGE }
         val order = (listOf(items.first()) + ranked + items.filter { it.lead }).distinct()
-        return fill(order.map { Source(Origin.PACK, it.article.title, it.passage.heading, it.passage.text, it.article.ref) }, budget)
+        return fill(order.map { Source(Origin.PACK, it.article.title, it.passage.heading, it.passage.text, it.article.ref) }, budget).take(MAX_QUOTES)
     }
 
     fun fromNotes(question: String, notes: NotesIndex, budget: Int, limit: Int = 3): List<Source> =

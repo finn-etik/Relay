@@ -65,10 +65,12 @@ class LoreTest {
     }
 
     @Test fun formatsSizes() {
-        assertEquals("2.6 GB", Format.bytes(2_780_000_000))
-        assertEquals("43.0 GB", Format.bytes(43L shl 30))
-        assertEquals("586 MB", Format.bytes(586L shl 20))
+        assertEquals("2.6 GB", Format.bytes(2_588_147_712))
+        assertEquals("49.0 GB", Format.bytes(49_000_000_000))
+        assertEquals("347 MB", Format.bytes(347_251_840))
         assertEquals("12 KB", Format.bytes(12_400))
+        assertEquals("52.7 GB", Remote("f", "u", "49G", 52_700_000_000).sizeLabel)
+        assertEquals("49G", Remote("f", "u", "49G").sizeLabel)
         assertEquals("37%", Format.percent(37, 100))
         assertEquals("…", Format.percent(5, 0))
         assertEquals("6 912 345", Format.count(6912345))

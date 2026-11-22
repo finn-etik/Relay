@@ -62,6 +62,19 @@ class AskTest {
         assertEquals("wikipedia\tMarie Curie", sources[0].ref)
     }
 
+    @Test fun linkListsAreNotQuotedAndQuotesAreFew() {
+        val many = article(
+            "Volcano",
+            "Volcano" to "A volcano is a mountain where lava comes from a magma chamber under the ground.",
+            "Related" to "List of volcano names",
+            *(1..9).map { "Part $it" to "Volcano fact number $it: a volcano of this kind erupts in its own particular way." }.toTypedArray(),
+        )
+        val sources = Ask.fromArticles("What is a volcano?", listOf(many), 9000)
+        assertEquals(5, sources.size)
+        assertEquals("Volcano", sources[0].label)
+        assertFalse(sources.any { it.section == "Related" })
+    }
+
     @Test fun sourcesStayWithinTheBudget() {
         val long = article("Long", "Long" to "word ".repeat(400), "More" to "other ".repeat(400))
         val sources = Ask.fromArticles("word other", listOf(long), 900)

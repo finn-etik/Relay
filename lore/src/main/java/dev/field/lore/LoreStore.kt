@@ -461,7 +461,10 @@ object LoreStore {
         _state.update { it.copy(looking = it.looking + id, failures = it.failures - "pack:$id") }
         desk.execute {
             val remote = try {
-                Packs.latest(fetch(pack.listing), pack)
+                Packs.latest(fetch(pack.listing), pack)?.let { found ->
+                    // The listing rounds sizes; ask the server for the exact length (also proves the file is there).
+                    found.copy(bytes = runCatching { lengthOf(found.url) }.getOrDefault(-1L))
+                }
             } catch (e: Exception) {
                 null
             }
@@ -804,6 +807,22 @@ object LoreStore {
             prefs.edit().putStringSet(PACKS, (prefs.getStringSet(PACKS, emptySet()) ?: emptySet()) + id).apply()
             _state.update { it.copy(transfers = it.transfers - key) }
             desk.execute { openArchives() }
+        }
+    }
+
+    /** A file's length, from a request for its first byte (works where HEAD is redirected away). */
+    private fun lengthOf(url: String): Long {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 15_000
+        connection.setRequestProperty("User-Agent", "LORE (Field kit)")
+        connection.setRequestProperty("Range", "bytes=0-0")
+        try {
+            val code = connection.responseCode
+            if (code != 200 && code != 206) return -1
+            return connection.getHeaderField("Content-Range")?.substringAfter('/')?.toLongOrNull() ?: connection.contentLengthLong
+        } finally {
+            connection.disconnect()
         }
     }
 

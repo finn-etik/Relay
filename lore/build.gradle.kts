@@ -36,4 +36,15 @@ dependencies {
     // The unit tests run on the build machine, which needs the plain jar
     // (it carries the desktop native libraries).
     testImplementation(libs.zstd.jni)
+
+    // Likewise the model runtime: its desktop build, so ModelLiveTest can
+    // run real models through Llm.kt in CI.
+    testRuntimeOnly(libs.litertlm.jvm)
+}
+
+// The Android and the desktop build of LiteRT-LM hold the same classes;
+// the tests must load the desktop one (the other has no native code for
+// the build machine).
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    exclude(group = "com.google.ai.edge.litertlm", module = "litertlm-android")
 }
