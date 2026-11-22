@@ -1,76 +1,42 @@
 name: Build APKs
-
-# Every push to main builds Relay plus the Field apps (CAL, DIAL, GATE,
-# PAGE, REEL, TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
-# also published to the `apks` branch.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: write # to publish the apks branch
-
 jobs:
-  build:
+  probe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      # Public repos accept pull requests: refuse a tampered gradle-wrapper.jar.
-      - uses: gradle/actions/wrapper-validation@v4
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Fetch speech runtime, VAD and Parakeet manifest (REEL)
-        run: scripts/fetch-sherpa.sh
-
-      # Optional stable signing, so new builds install over old ones.
-      # Add repo secrets FIELD_KEYSTORE_B64 (base64 .jks), FIELD_KEYSTORE_PASSWORD,
-      # FIELD_KEY_ALIAS, FIELD_KEY_PASSWORD to enable. Without them: debug key.
-      - name: Signing key
-        env:
-          KS: ${{ secrets.FIELD_KEYSTORE_B64 }}
+      - name: Radio Browser entries for Sveriges Radio
         run: |
-          if [ -n "$KS" ]; then
-            echo "$KS" | base64 -d > "$RUNNER_TEMP/field.jks"
-            echo "FIELD_KEYSTORE_PATH=$RUNNER_TEMP/field.jks" >> "$GITHUB_ENV"
-          fi
-
-      - name: Unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
-
-      - name: Build release APKs
-        env:
-          FIELD_KEYSTORE_PASSWORD: ${{ secrets.FIELD_KEYSTORE_PASSWORD }}
-          FIELD_KEY_ALIAS: ${{ secrets.FIELD_KEY_ALIAS }}
-          FIELD_KEY_PASSWORD: ${{ secrets.FIELD_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon assembleRelease
-
-      - name: Collect
-        run: |
-          mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk out/relay.apk
-          for m in cal dial gate page reel tally; do
-            cp "$m/build/outputs/apk/release/$m-release.apk" "out/$m.apk"
+          for q in "sveriges%20radio" "sr%20p1" "p3%20sveriges" "p4%20stockholm" "p2%20sveriges"; do
+            echo "=== search $q"
+            curl -s --max-time 20 -A "DIAL/1.2 (probe)" "https://de1.api.radio-browser.info/json/stations/search?name=$q&limit=20&order=votes&reverse=true&hidebroken=true" \
+              | jq -r '.[] | [.name, .url, .url_resolved, .codec, (.bitrate|tostring), (.hls|tostring), (.lastcheckok|tostring), .countrycode] | join(" | ")' || true
           done
-          ls -la out
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: apks
-          path: out/*.apk
-
-      - name: Publish to the apks branch
-        if: github.ref == 'refs/heads/main'
+      - name: Stream responses
         run: |
-          cd out
-          git init -q -b apks
-          git -c user.name=ci -c user.email=ci@users.noreply.github.com add *.apk
-          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -q -m "APKs for ${GITHUB_SHA::7}"
-          git push -fq "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" apks
+          probe() {
+            echo; echo "=================== $2  [UA: $1]"
+            curl -s -L --max-redirs 8 --max-time 8 -A "$1" -H "Icy-MetaData: 1" -D /tmp/h -o /tmp/b "$2" || true
+            grep -i -E "^HTTP|^location|^content-type|^icy|^server|^transfer|^content-length|^connection|^accept-ranges|^content-range" /tmp/h || true
+            echo "bytes: $(stat -c %s /tmp/b 2>/dev/null)"; head -c 48 /tmp/b | xxd | head -3
+            rm -f /tmp/h /tmp/b
+          }
+          SF="stagefright/1.2 (Linux;Android 14)"
+          for u in \
+            "https://live1.sr.se/p1-aac-320" "https://live1.sr.se/p1-aac-128" "https://live1.sr.se/p1-mp3-96" "https://live1.sr.se/p1-mp3-192" \
+            "https://live1.sr.se/p3-aac-320" "https://live1.sr.se/p1-flac" \
+            "http://sverigesradio.se/topsy/direkt/srapi/132.mp3" "https://sverigesradio.se/topsy/direkt/srapi/132.mp3" \
+            "http://sverigesradio.se/topsy/direkt/srapi/132-hi-aac-http" "https://sverigesradio.se/topsy/direkt/132-hi-aac" \
+            "https://sverigesradio.se/topsy/direkt/132-hi-mp3.m3u" "https://sverigesradio.se/topsy/direkt/132-hi-aac.pls" \
+            "https://http-live.sr.se/p1-mp3-192" "https://edge1.sr.se/p1-aac-320" "https://ice1.somafm.com/groovesalad-128-mp3"; do
+            probe "$SF" "$u"
+          done
+          probe "curl/8" "https://live1.sr.se/p1-aac-320"
+          probe "Mozilla/5.0" "https://live1.sr.se/p1-aac-320"
+          echo; echo "=== range request (what Android's media stack sends)"
+          curl -s -L --max-time 8 -A "$SF" -H "Range: bytes=0-" -D - -o /dev/null "https://live1.sr.se/p1-aac-320" | grep -i -E "^HTTP|content-type|content-range|accept-ranges|location" || true
+          echo "=== HTTP version"
+          curl -s -L --max-time 6 -A "$SF" -o /dev/null -w "%{http_version} %{response_code} %{url_effective}\n" "https://live1.sr.se/p1-aac-320" || true
+          curl -s -L --http1.1 --max-time 6 -A "$SF" -o /dev/null -w "forced1.1: %{http_version} %{response_code}\n" "https://live1.sr.se/p1-aac-320" || true
+          echo "=== SR API channel list"
+          curl -s --max-time 20 "https://api.sr.se/api/v2/channels?format=json&pagination=false" | jq -r '.channels[] | [(.id|tostring), .name, .channeltype, .liveaudio.url] | join(" | ")' | head -60 || true
