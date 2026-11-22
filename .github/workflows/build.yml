@@ -4,41 +4,28 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - name: Does the server interleave ICY metadata when not asked?
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
         run: |
-          cat > /tmp/adts.py <<'PY'
-          import sys
-          b = open(sys.argv[1], 'rb').read()
-          pos = 0; n = 0
-          while pos + 7 <= len(b):
-              if b[pos] != 0xFF or (b[pos+1] & 0xF6) != 0xF0:
-                  print(f"  ADTS sync LOST at byte {pos} after {n} frames; bytes there: {b[pos:pos+8].hex()}")
-                  break
-              length = ((b[pos+3] & 3) << 11) | (b[pos+4] << 3) | (b[pos+5] >> 5)
-              if length < 7: print("  bad frame length at", pos); break
-              pos += length; n += 1
-          else:
-              print(f"  ADTS framing intact for {n} frames over {pos} bytes")
-          PY
-          SF="stagefright/1.2 (Linux;Android 14)"
-          for mode in none zero one; do
-            for u in "https://edge1.sr.se/p1-aac-320" "https://edge1.sr.se/p3-aac-320"; do
-              echo "=== $u  Icy-MetaData header: $mode"
-              case $mode in
-                none) curl -s --max-time 6 -A "$SF" -D /tmp/h -o /tmp/b "$u" || true ;;
-                zero) curl -s --max-time 6 -A "$SF" -H "Icy-MetaData: 0" -D /tmp/h -o /tmp/b "$u" || true ;;
-                one)  curl -s --max-time 6 -A "$SF" -H "Icy-MetaData: 1" -D /tmp/h -o /tmp/b "$u" || true ;;
-              esac
-              grep -i -E "^HTTP|icy-metaint|content-type" /tmp/h || true
-              echo "  bytes: $(stat -c %s /tmp/b)"; python3 /tmp/adts.py /tmp/b
-              echo "  around 16384: $(xxd -s 16376 -l 24 -p /tmp/b)"
-            done
-          done
-          echo "=== with Range: bytes=0- and no Icy header (Android MediaPlayer's request)"
-          curl -s --max-time 6 -A "$SF" -H "Range: bytes=0-" -D /tmp/h -o /tmp/b "https://edge1.sr.se/p1-aac-320" || true
-          cat /tmp/h; python3 /tmp/adts.py /tmp/b
-          echo "=== HEAD request"
-          curl -s --max-time 6 -A "$SF" -I "https://edge1.sr.se/p1-aac-320" || true
-          echo "=== TLS"
-          echo | openssl s_client -connect edge1.sr.se:443 -servername edge1.sr.se 2>/dev/null | grep -E "Protocol|Cipher|Verify return|subject=|issuer=" | head -8
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: |
+            adb logcat -c || true
+            ./gradlew --no-daemon :dial:connectedDebugAndroidTest || true
+            adb logcat -d -v brief | grep -E "DIALPROBE|MediaHTTPConnection|GenericSource|NuPlayer |NuCachedSource|MediaExtractor|AACExtractor|MediaPlayerNative|MediaPlayer *:|NuPlayerDriver|StagefrightMetadata|MediaCodec.*(E|W)/" | grep -v "^D/" | tail -400 > /tmp/media.log || true
+            echo "===== PROBE RESULTS"; grep DIALPROBE /tmp/media.log || true
+            echo "===== FRAMEWORK MEDIA LOG"; grep -v DIALPROBE /tmp/media.log | cut -c1-300 | tail -200 || true
