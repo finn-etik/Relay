@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -125,12 +126,14 @@ object FieldColors {
     val SignalAmber = Color(0xFFFFB000)
     val SignalViolet = Color(0xFF6200EA)
     val SignalMagenta = Color(0xFFD6006F)
+    val SignalCyan = Color(0xFF008FA8)
 
     /** Blue, red and violet lifted to stay readable as text on the dark body. */
     val SignalBlueOnDark = Color(0xFF5C9DFF)
     val SignalRedOnDark = Color(0xFFFF5A4F)
     val SignalVioletOnDark = Color(0xFFB08CFF)
     val SignalMagentaOnDark = Color(0xFFFF6FB5)
+    val SignalCyanOnDark = Color(0xFF45D0E8)
     /** PAGE: a calm accent for long writing sessions, not a signal. */
     val Sage = Color(0xFF4F7A6B)
 }
@@ -206,6 +209,32 @@ fun FieldText(
         maxLines = maxLines,
         overflow = overflow,
         softWrap = softWrap,
+    )
+}
+
+/**
+ * Running text meant to be read, not scanned: an answer, an article.
+ * Monospace like everything else, but regular weight and roomier lines.
+ * Takes styled text, so emphasis and accents can sit inside a paragraph.
+ */
+@Composable
+fun FieldProse(
+    text: AnnotatedString,
+    modifier: Modifier = Modifier,
+    size: TextUnit = 14.sp,
+    color: Color = FieldColors.Ink,
+    weight: FontWeight = FontWeight.Normal,
+) {
+    BasicText(
+        text = text,
+        modifier = modifier,
+        style = TextStyle(
+            fontFamily = FontFamily.Monospace,
+            fontSize = size,
+            fontWeight = weight,
+            color = color,
+            lineHeight = size * 1.5f,
+        ),
     )
 }
 
@@ -583,6 +612,8 @@ fun FieldInput(
     height: Dp = 52.dp,
     imeAction: ImeAction = ImeAction.Done,
     onDone: () -> Unit = {},
+    /** More than 1: the field grows with its text up to this many lines, and Enter starts a new line. */
+    maxLines: Int = 1,
 ) {
     val style = TextStyle(
         fontFamily = FontFamily.Monospace,
@@ -590,13 +621,15 @@ fun FieldInput(
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.sp,
         color = FieldColors.Ink,
+        lineHeight = if (maxLines > 1) 18.sp else TextUnit.Unspecified,
     )
+    val single = maxLines <= 1
     Box(
         modifier
-            .height(height)
+            .let { if (single) it.height(height) else it.heightIn(min = height) }
             .background(FieldColors.Paper, KeyShape)
             .border(1.5.dp, FieldColors.Ink, KeyShape)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 14.dp, vertical = if (single) 0.dp else 12.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) FieldText(placeholder, 12.sp, color = FieldColors.Dim, tracking = 1.sp, maxLines = 1)
@@ -605,15 +638,15 @@ fun FieldInput(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             textStyle = style,
-            singleLine = true,
+            singleLine = single,
+            maxLines = maxLines,
             cursorBrush = SolidColor(LocalAccent.current),
-            keyboardOptions = KeyboardOptions(imeAction = imeAction),
-            keyboardActions = KeyboardActions(onAny = { onDone() }),
+            keyboardOptions = if (single) KeyboardOptions(imeAction = imeAction) else KeyboardOptions.Default,
+            keyboardActions = if (single) KeyboardActions(onAny = { onDone() }) else KeyboardActions.Default,
         )
     }
 }
 
-/** Bottom line naming the skin, per spec. */
 @Composable
 fun SkinLine(text: String) {
     FieldText(text, 10.sp, Modifier.padding(top = 6.dp), color = FieldColors.Dim, tracking = 1.sp)

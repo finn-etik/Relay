@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF191919"
+        android:pathData="M33,33h42v42h-42z" />
+    <!-- A citation mark: square brackets around a signal block. -->
+    <path
+        android:fillColor="#FFF5F5F1"
+        android:pathData="M40,41h8v3h-5v20h5v3h-8z M68,41h-8v3h5v20h-5v3h8z" />
+    <path
+        android:fillColor="@color/field_accent"
+        android:pathData="M51,49h6v10h-6z" />
+</vector>

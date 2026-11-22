@@ -1,7 +1,7 @@
 name: Build APKs
 
 # Every push to main builds Relay plus the Field apps (CAL, DIAL, GATE,
-# LIST, PAGE, REEL, TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
+# LIST, LORE, PAGE, REEL, TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
 # also published to the `apks` branch.
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
         run: |
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/relay.apk
-          for m in cal dial gate list page reel tally; do
+          for m in cal dial gate list lore page reel tally; do
             cp "$m/build/outputs/apk/release/$m-release.apk" "out/$m.apk"
           done
           ls -la out
@@ -65,6 +65,20 @@ jobs:
         with:
           name: apks
           path: out/*.apk
+
+      # LORE downloads its model and knowledge packs from Hugging Face and
+      # Kiwix. This asks both whether the catalogue's addresses still exist,
+      # and reads a real (small) Kiwix archive with LORE's own reader. It
+      # needs the network, so a failure here does not hold up the APKs:
+      # read the step's log.
+      - name: LORE live checks (download sources, a real archive)
+        continue-on-error: true
+        env:
+          LORE_LIVE: "1"
+        run: |
+          ./gradlew --no-daemon :lore:testDebugUnitTest --rerun --tests 'dev.field.lore.LiveTest' || status=$?
+          cat lore/build/lore-live.txt || true
+          exit ${status:-0}
 
       - name: Publish to the apks branch
         if: github.ref == 'refs/heads/main'

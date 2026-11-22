@@ -16,6 +16,7 @@ Language), plus Relay. One Gradle build, one APK per app.
 | `dial/` | DIAL | Web radio (AndroidX Media3). | violet |
 | `gate/` | GATE | Focus timer. | blue |
 | `list/` | LIST | To-do lists as Markdown files in spaces (folders); shared through a synced folder. | magenta |
+| `lore/` | LORE | Offline assistant: a small on-device language model (LiteRT-LM) that looks questions up in the notes folder and in Wikipedia / Wikibooks archives, and cites them. | cyan |
 | `page/` | PAGE | Focused Markdown writing. | sage |
 | `reel/` | REEL | Voice recorder with on-device transcription. | red |
 | `tally/` | TALLY | Calculator. | amber |
@@ -120,6 +121,11 @@ AndroidX and Kotlin only, no other third-party libraries, and nothing that
 needs Google Play services. Versions live in `gradle/libs.versions.toml`.
 A new dependency also gets a line in `THIRD_PARTY_NOTICES.md` and a comment
 at its declaration saying why it earns its place.
+
+The exceptions, each because Android has nothing built in: sherpa-onnx
+(REEL, speech recognition), LiteRT-LM (LORE, runs the language model) and
+zstd-jni (LORE, decompresses Kiwix archives). No GPL code: LORE reads ZIM
+archives with its own reader (`Zim.kt`) rather than libzim / libkiwix.
 
 ## Adding a Field app
 

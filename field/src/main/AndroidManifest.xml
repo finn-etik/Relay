@@ -9,6 +9,7 @@
         <package android:name="dev.field.dial" />
         <package android:name="dev.field.gate" />
         <package android:name="dev.field.list" />
+        <package android:name="dev.field.lore" />
         <package android:name="dev.field.page" />
         <package android:name="dev.field.reel" />
         <package android:name="dev.field.tally" />

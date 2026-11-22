@@ -23,6 +23,7 @@ object Kit {
     const val DIAL = "dev.field.dial"
     const val GATE = "dev.field.gate"
     const val LIST = "dev.field.list"
+    const val LORE = "dev.field.lore"
     const val PAGE = "dev.field.page"
     const val REEL = "dev.field.reel"
     const val TALLY = "dev.field.tally"

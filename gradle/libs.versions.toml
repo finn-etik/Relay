@@ -9,6 +9,8 @@ activity-compose = "1.9.3"
 core-ktx = "1.15.0"
 lifecycle = "2.8.7"
 media3 = "1.4.1"
+litertlm = "0.19.1"
+zstd-jni = "1.5.6-9"
 junit = "4.13.2"
 
 # Android SDK levels shared by the Field apps and the :field library.
@@ -25,6 +27,8 @@ core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
+litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litertlm" }
+zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstd-jni" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 # Gradle plugins as libraries: build-logic/ compiles against them.

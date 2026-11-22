@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="field_body">#FFDADAD4</color>
+    <color name="field_accent">#FF008FA8</color>
+    <!-- Launcher icon plate: light in both modes (the glyph is dark). -->
+    <color name="field_icon">#FFDADAD4</color>
+</resources>
