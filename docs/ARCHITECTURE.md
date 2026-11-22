@@ -7,7 +7,7 @@ the map.
 
 ```
 app/            RELAY (dev.relay)          own UI, own audio pipeline
-cal/ dial/ gate/ page/ reel/ tally/        the Field apps (dev.field.<name>)
+cal/ dial/ gate/ list/ page/ reel/ tally/  the Field apps (dev.field.<name>)
 field/          dev.field.ui               shared components, palette, formatting
 build-logic/    convention plugins         field.app, field.android.application, field.library
 gradle/libs.versions.toml                  every version number
@@ -33,7 +33,8 @@ only on AndroidX. Apps never depend on each other.
 |---|---|---|---|
 | CAL | `CalLogic.kt` | `CalendarRepo.kt` (system calendar provider) | none |
 | DIAL | `Dial.kt` (`DialState`, `Dial`, `Playlist`) | `DialStore.kt` | `DialService.kt` (Media3 playback, media session) |
-| GATE | `GateState.kt` | `GateStore.kt` | alarm + notification receivers in `GateStore.kt` |
+| GATE | `GateState.kt` | `GateStore.kt` | alarm + notification receivers in `GateStore.kt`; kit links in `GateLink.kt` |
+| LIST | `Tasks.kt`, `TaskFile.kt` | `ListStore.kt` (lists as files in spaces) | `Reminders.kt` (alarm + receiver) |
 | PAGE | `Text.kt`, `Markdown.kt`, `Html.kt`, `Style.kt`, `PageState.kt` | `PageStore.kt` (notes as files) | none |
 | REEL | `Audio.kt` | `ReelStore.kt` | `RecorderService.kt`; `Transcriber.kt`, `ParakeetModel.kt`, `M4a.kt` |
 | TALLY | `Calc.kt` | `LogStore` in `MainActivity.kt` | none |
@@ -43,6 +44,9 @@ only on AndroidX. Apps never depend on each other.
 - `Field.kt`: palette (`FieldColors`, light and dark), `fieldContent()`
   (theme entry point), and every component.
 - `Fmt.kt`: number and clock formatting used in readouts.
+- `Kit.kt`: the run-time links between the apps (focus sessions in GATE,
+  text hand-offs). The library manifest lists the kit's packages so the
+  apps may address each other.
 
 The palette is snapshot state: switching `FieldColors.palette` redraws
 everything that reads a tone, so components need no theme parameter.
@@ -67,6 +71,7 @@ debug key (installs, but not over a build signed elsewhere).
 | REEL takes | audio files in app storage + an index |
 | CAL events | the system calendar provider (not ours) |
 | DIAL stations | JSON in preferences |
+| LIST lists | one Markdown checklist per list, in app storage or user-picked folders (spaces) |
 
 ## Testing
 

@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A slip with three tasks: the first one ticked. -->
+    <path
+        android:fillColor="#FF191919"
+        android:pathData="M33,33h42v42h-42z" />
+    <path
+        android:fillColor="@color/field_accent"
+        android:pathData="M39,40h7v7h-7z" />
+    <path
+        android:fillColor="#FFF5F5F1"
+        android:pathData="M50,42h19v3h-19z M39,51h7v7h-7z M41,53v3h3v-3z M50,53h19v3h-19z M39,62h7v7h-7z M41,64v3h3v-3z M50,64h12v3h-12z"
+        android:fillType="evenOdd" />
+</vector>

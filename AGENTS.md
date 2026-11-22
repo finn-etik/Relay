@@ -15,6 +15,7 @@ Language), plus Relay. One Gradle build, one APK per app.
 | `cal/` | CAL | Calendar on the system calendar provider. | green |
 | `dial/` | DIAL | Web radio (AndroidX Media3). | violet |
 | `gate/` | GATE | Focus timer. | blue |
+| `list/` | LIST | To-do lists as Markdown files in spaces (folders); shared through a synced folder. | magenta |
 | `page/` | PAGE | Focused Markdown writing. | sage |
 | `reel/` | REEL | Voice recorder with on-device transcription. | red |
 | `tally/` | TALLY | Calculator. | amber |
@@ -78,6 +79,14 @@ Rules that follow from this:
   parent (an offset full-width box overflows; this was a real bug).
 - Text that must stay on one line says so (`maxLines = 1`, and
   `softWrap = false` for fixed labels): users run larger system fonts.
+
+## Links between apps
+
+Apps never depend on each other in Gradle. They hand off at run time through
+`field/Kit.kt` (start / stop / read a GATE focus session; send text to
+another kit app). A new link goes there, works when the other app is
+missing (say so on screen), and carries no custom permission: the APKs may
+be signed with different keys.
 
 ## Dependencies
 

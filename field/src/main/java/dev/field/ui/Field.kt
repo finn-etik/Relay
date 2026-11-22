@@ -64,7 +64,7 @@ import kotlinx.coroutines.delay
  * Field Design Language: shared tokens and components.
  *
  * The core palette is fixed by the spec. Each app owns exactly one signal
- * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber, DIAL violet; PAGE takes a
+ * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber, DIAL violet, LIST magenta; PAGE takes a
  * deliberately quiet sage), provided through [FieldTheme] and used only for
  * live / active / urgent.
  */
@@ -116,11 +116,13 @@ object FieldColors {
     val SignalRed = Color(0xFFFF0000)
     val SignalAmber = Color(0xFFFFB000)
     val SignalViolet = Color(0xFF6200EA)
+    val SignalMagenta = Color(0xFFD6006F)
 
     /** Blue, red and violet lifted to stay readable as text on the dark body. */
     val SignalBlueOnDark = Color(0xFF5C9DFF)
     val SignalRedOnDark = Color(0xFFFF5A4F)
     val SignalVioletOnDark = Color(0xFFB08CFF)
+    val SignalMagentaOnDark = Color(0xFFFF6FB5)
     /** PAGE: a calm accent for long writing sessions, not a signal. */
     val Sage = Color(0xFF4F7A6B)
 }
@@ -434,6 +436,61 @@ fun FieldRow(
         Box(Modifier.weight(1f)) { content() }
         if (trailing.isNotEmpty()) {
             FieldText(trailing, 10.sp, Modifier.widthIn(max = 150.dp), color = FieldColors.Dim, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/**
+ * Task row: a tick box with its own tap target (ticking must not open the
+ * row), body, optional trailing readout. Accent border when selected.
+ */
+@Composable
+fun FieldCheckRow(
+    checked: Boolean,
+    onCheck: () -> Unit,
+    selected: Boolean,
+    onClick: () -> Unit,
+    trailing: String = "",
+    content: @Composable () -> Unit,
+) {
+    val accent = LocalAccent.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(FieldColors.Paper, CardShape)
+            .border(if (selected) 2.dp else 1.5.dp, if (selected) accent else FieldColors.Ink, CardShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(start = 2.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        // 44 dp square: a finger-sized target around the 20 dp box.
+        Box(
+            Modifier
+                .size(44.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Checkbox,
+                    onClick = onCheck,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(20.dp).border(1.5.dp, FieldColors.Ink), contentAlignment = Alignment.Center) {
+                if (checked) Box(Modifier.size(12.dp).background(accent))
+            }
+        }
+        Box(Modifier.weight(1f).padding(vertical = 10.dp)) { content() }
+        if (trailing.isNotEmpty()) {
+            FieldText(
+                trailing, 10.sp, Modifier.padding(start = 8.dp).widthIn(max = 130.dp),
+                color = FieldColors.Dim, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

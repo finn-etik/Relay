@@ -33,14 +33,14 @@ DIAL (play / pause), plus small widgets: today's agenda (CAL), countdown
 should not need the app opened. Tiles are framework-only and cheap;
 widgets are a larger step.
 
-**5. The apps as a kit, not seven islands.**
-- REEL transcript -> "SEND TO PAGE" (a note file in PAGE's folder).
-- CAL entry -> "FOCUS" starts a GATE session of that length.
-- PAGE sprint and GATE session share one timer rather than two.
-- Share targets: text shared to PAGE becomes a note; a link shared to DIAL
-  becomes a station.
-This is what makes a suite worth more than its parts, and it is mostly
-intents between apps we already control.
+**5. More links between the apps.**
+Built: REEL transcript to PAGE, CAL entry to a GATE session, PAGE sprints on
+GATE's timer, LIST task to GATE and PAGE, text shared into PAGE and LIST.
+Still open:
+- CAL shows LIST tasks on their due date, and a LIST task can be planned as
+  a CAL entry.
+- A link shared to DIAL becomes a station.
+- GATE's log names what the session was for (the CAL entry or LIST task).
 
 **6. Accessibility pass on `field/`.**
 The components are drawn from primitives, so they carry little semantic
@@ -110,6 +110,14 @@ out so far because turning them on needs one pass to fix what they find.
 - Share or export the register tape.
 - Memory keys (M+, MR) for multi-step sums.
 
+**LIST**
+- Repeating tasks.
+- A DONE action on the reminder notification.
+- Pick any date and time for due and remind (today there are presets).
+- Reorder tasks by hand; move a task to another list.
+- Live sync through a small server, if the synced-folder model proves too
+  slow for two people.
+
 **RELAY**
 - Dark mode (comes with item 8 above).
 
@@ -122,10 +130,6 @@ Play services.
 **TICK: clock.** Alarms, world clock, stopwatch, countdown. The most-used
 utility the kit lacks, and GATE already has exact alarms, the boot receiver
 and the notification pattern.
-
-**LIST: tasks.** Checklists as plain Markdown files (`- [ ]`), in the same
-folder model as PAGE, so PAGE can open them and other apps can sync them.
-Completes the CAL / GATE / PAGE planning loop: what, when, do, write.
 
 **SPOT: field log.** Tap-to-count tallies with time and optional location,
 saved as CSV: bird counts, inventory, traffic surveys, lap counting. A
@@ -148,5 +152,4 @@ and PAGE's plain-files-in-a-folder model.
 station list; includes Sveriges Radio's programme archive through the same
 open API. The second half of "radio".
 
-Suggested order: TICK (highest daily use, lowest risk), then LIST, then
-SPOT or GAUGE.
+Suggested order: TICK (highest daily use, lowest risk), then SPOT or GAUGE.

@@ -248,3 +248,34 @@ for them, DIAL sat in CONNECT forever instead of retrying.
   single-line and the column is wider.
 - Relay's launcher name is RELAY.
 
+# Kit links and LIST
+
+**Links (`field/Kit.kt`).** The apps hand off at run time, never in the
+build. GATE exposes a receiver (start / stop) and a read-only provider (the
+running session); CAL, LIST and PAGE use them. PAGE and LIST accept shared
+text. The links carry no permission on purpose: a signature permission
+would make installs fail whenever two of the apps were signed with
+different keys, which is the normal case for CI debug builds. What is
+exposed is a focus timer and its countdown.
+
+**PAGE sprints.** With GATE installed a sprint is a GATE session that PAGE
+follows once a second (`Goals.followFocus`): it joins a session started
+anywhere, moves its end when GATE is held and resumed, logs the words at
+the end and drops the sprint if GATE is stopped early. Without GATE, PAGE
+times the sprint itself as before.
+
+**LIST.** Lists are Markdown checklists (`TaskFile`), one file per list,
+grouped into spaces (app storage, or folders the user picks). Sharing is a
+folder that a sync app keeps identical on two phones. Because files then
+change behind the app's back:
+- every edit re-reads the file, applies one change by task id, writes back;
+- conflict copies left by the sync tool are merged into the original on the
+  next read (`TaskFile.merge`: nothing is dropped, ticked wins);
+- tasks carry a short `id:` so both of the above can match them.
+MY DAY picks are kept on the phone, not in the file, so one partner's day
+does not appear in the other's. Reminders use one alarm for the next
+reminder plus an hourly look-in when a shared space is connected.
+
+Not verified on a device: the folder picker with a real sync app, reminder
+timing, and the links between installed apps.
+
