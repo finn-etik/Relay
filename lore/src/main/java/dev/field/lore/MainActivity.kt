@@ -112,20 +112,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LoreApp() {
     val state by LoreStore.state.collectAsState()
-    var library by rememberSaveable { mutableStateOf(false) }
+    var inLibrary by rememberSaveable { mutableStateOf(false) }
 
     val reading = state.reading
     when {
-        reading != null -> Reader(reading)
-        library -> Library(state) { library = false }
-        else -> Chat(state) { library = true }
+        reading != null -> ReaderScreen(reading)
+        inLibrary -> LibraryScreen(state) { inLibrary = false }
+        else -> ChatScreen(state) { inLibrary = true }
     }
 }
 
 // --------------------------------------------------------------------- chat
 
 @Composable
-private fun Chat(state: State, onLibrary: () -> Unit) {
+private fun ChatScreen(state: State, onLibrary: () -> Unit) {
     val chat = state.chat
     var draft by rememberSaveable { mutableStateOf("") }
     // What the sheet shows: "", "chats", "turn:<id>" or "source:<turn id>:<index>".
@@ -412,7 +412,14 @@ private fun DeleteKey(label: String, confirm: String, onDelete: () -> Unit) {
     }
     FieldKey(
         if (armed) confirm else label,
-        { if (armed) { armed = false; onDelete() } else armed = true },
+        {
+            if (armed) {
+                armed = false
+                onDelete()
+            } else {
+                armed = true
+            }
+        },
         Modifier.fillMaxWidth().padding(top = 12.dp), height = 40.dp, size = 10.sp,
     )
 }
@@ -436,7 +443,7 @@ private fun progress(t: LoreStore.Transfer): String = listOf(
 
 /** Where the model, the knowledge packs and the notes folder are managed. */
 @Composable
-private fun Library(state: State, onBack: () -> Unit) {
+private fun LibraryScreen(state: State, onBack: () -> Unit) {
     // What the sheet shows: "", "model:<id>", "pack:<id>" or "archive:<key>".
     var sheet by rememberSaveable { mutableStateOf("") }
 
@@ -638,7 +645,7 @@ private fun ColumnScope.ArchiveSheet(archive: LoreStore.Archive, onClose: () -> 
 
 /** A whole article or note, for checking an answer against its source. */
 @Composable
-private fun Reader(reading: LoreStore.Reading) {
+private fun ReaderScreen(reading: LoreStore.Reading) {
     BackHandler { LoreStore.closeReading() }
     FieldScreen {
         StatusHeader("LORE", LedMode.Off, "READING", left = reading.title.uppercase(), right = "")

@@ -266,16 +266,16 @@ object LoreStore {
     private fun search(question: String, model: Model, s: State, engine: Llm): List<Source> {
         val index = notes?.takeIf { s.useNotes && it.chunks.isNotEmpty() }
         val archives = if (s.usePacks) zims else emptyMap()
-        val find = { title: String -> find(archives, title) }
+        val lookup = { title: String -> find(archives, title) }
 
         val fromNotes = if (index == null) emptyList()
         else Ask.fromNotes(question, index, if (archives.isEmpty()) model.sourceChars else model.sourceChars * 2 / 5)
 
-        var articles = if (archives.isEmpty()) emptyList() else Ask.articles(question, 3, find)
+        var articles = if (archives.isEmpty()) emptyList() else Ask.articles(question, 3, lookup)
         if (articles.isEmpty() && archives.isNotEmpty() && fromNotes.isEmpty() && !stopped) {
             // Nothing in the question is an article title ("why is the sky blue"): let the model name some.
             val reply = runCatching { engine.answer(Ask.TITLE_SYSTEM, emptyList(), Ask.titlePrompt(question)) {} }.getOrDefault("")
-            articles = Ask.articlesNamed(Ask.titlesFrom(Ask.clean(reply)), find).take(3)
+            articles = Ask.articlesNamed(Ask.titlesFrom(Ask.clean(reply)), lookup).take(3)
         }
         return fromNotes + Ask.fromArticles(question, articles, model.sourceChars - fromNotes.sumOf { it.text.length })
     }

@@ -13,14 +13,14 @@ public repository and in distributed APKs.
 | AndroidX Activity Compose | 1.9.3 | Apache License 2.0 |
 | AndroidX Core KTX | 1.15.0 | Apache License 2.0 |
 | AndroidX Lifecycle Runtime KTX | 2.8.7 | Apache License 2.0 |
-| Kotlin standard library | 2.0.21 | Apache License 2.0 |
+| Kotlin standard library | 2.4.0 | Apache License 2.0 |
 | kotlinx.coroutines (transitive) | via AndroidX | Apache License 2.0 |
 | Speaker icon path data (`res/drawable/ic_relay.xml`) | Material Design Icons, "volume up" | Apache License 2.0, Google |
 
 Copyright for each component remains with its authors (Google LLC / The
 Android Open Source Project, JetBrains s.r.o. and contributors).
 
-## Field apps (CAL, DIAL, GATE, PAGE, REEL, TALLY)
+## Field apps (CAL, DIAL, GATE, LIST, LORE, PAGE, REEL, TALLY)
 
 The Field apps use the same AndroidX / Compose / Kotlin components as above
 (Apache License 2.0). REEL additionally ships:
@@ -36,6 +36,29 @@ REEL downloads, at the user's request and not inside the APK:
 | Model | License |
 |-------|---------|
 | NVIDIA Parakeet TDT 0.6B v3, int8 ONNX export by the sherpa-onnx project (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`) | CC-BY-4.0, NVIDIA Corporation. Attribution is shown in REEL's model card. |
+
+LORE additionally ships:
+
+| Component | License |
+|-----------|---------|
+| LiteRT-LM 0.19.1 (`com.google.ai.edge.litertlm:litertlm-android`), the on-device language-model runtime, with its native libraries | Apache License 2.0, Google LLC |
+| Gson and kotlinx.coroutines (dependencies of LiteRT-LM) | Apache License 2.0 |
+| zstd-jni 1.5.6-9 (`com.github.luben:zstd-jni`), JNI bindings | BSD 2-Clause, Luben Karavelov |
+| Zstandard (inside zstd-jni) | BSD 3-Clause, Meta Platforms, Inc. |
+
+LORE reads ZIM archives with its own code, written from the openZIM format
+description; it contains no libzim or libkiwix code.
+
+LORE downloads, at the user's request and not inside the APK:
+
+| What | From | License |
+|------|------|---------|
+| Gemma 4 E2B and E4B, LiteRT-LM builds (`litert-community/gemma-4-E2B-it-litert-lm`, `gemma-4-E4B-it-litert-lm`) | Hugging Face | Apache License 2.0, Google LLC |
+| Qwen3 0.6B, LiteRT-LM build (`litert-community/Qwen3-0.6B-int4`) | Hugging Face | Apache License 2.0, Alibaba Cloud |
+| English Wikipedia and Wikibooks as ZIM archives | [Kiwix](https://kiwix.org/) (`download.kiwix.org`) | Text: CC BY-SA 4.0, the Wikipedia and Wikibooks contributors. LORE shows the article a passage comes from with every answer that uses one. |
+
+Wikipedia and Wikibooks are trademarks of the Wikimedia Foundation; Kiwix is
+an independent project. LORE is affiliated with neither.
 
 DIAL additionally ships:
 

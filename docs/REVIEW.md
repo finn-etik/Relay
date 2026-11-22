@@ -344,3 +344,40 @@ Every screen was read for the same faults; the shared causes were fixed in
 Not verified on a device: the sheet's behaviour with the keyboard open and
 on small screens, and how the dark RELAY screen looks.
 
+## LORE (new app)
+
+Design decisions, and what is and is not known to work.
+
+- **Model.** Gemma 4 E2B on LiteRT-LM is the default: about 2 billion
+  effective parameters in a 2.6 GB file, the model Google's runtime is
+  tuned for, Apache 2.0 and downloadable without an account. Qwen3 0.6B is
+  offered for phones that cannot hold it; its file has a fixed 1280-token
+  context, so it is given much less source text. Gemma 4 E4B is the upper
+  limit. GGUF / llama.cpp models were not used: slower on phone GPUs, and
+  it would mean shipping a second runtime.
+- **Reliability.** A graphics driver that cannot run the model may kill the
+  app instead of reporting an error. LORE writes a marker before starting
+  on the GPU and clears it after; a marker found at the next launch means
+  "use the processor". An answer that fails (most likely too much text for
+  the context) is tried once more with one source and no history.
+- **Wikipedia without a search index.** Kiwix archives carry a Xapian
+  full-text index, which only the GPL libraries can read. LORE instead
+  finds articles by exact title, through the archive's title list, and
+  ranks passages itself. Consequence: a question that names its subject
+  ("when was Marie Curie born") is found; one that does not ("why is the
+  sky blue") depends on the model proposing the right article title.
+- **Large downloads** go through the system DownloadManager (resumes,
+  survives the app being closed and a reboot, Wi-Fi only unless allowed).
+  The full Wikipedia is tens of GB: the app shows the size of the current
+  edition and the free space before anything starts.
+- **Notes** are read through the folder picker (the same folder PAGE
+  uses). Only changed files are read again on return to the app.
+
+Verified in CI: the pure logic (archive reader against built fixtures in
+every layout, HTML to text, ranking, prompt, Markdown), real Zstandard
+streams, that the catalogue's download addresses answer, and a real Kiwix
+archive read end to end.
+
+Not verified: anything on a phone. The model has not been loaded or run;
+speed, memory use, GPU support and answer quality are untested. The
+download flow, the folder picker and every screen are untested.

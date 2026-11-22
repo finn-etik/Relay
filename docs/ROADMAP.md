@@ -17,7 +17,7 @@ screenshots would catch this class before it reaches a phone.
 Without the `FIELD_KEYSTORE_*` secrets each build is signed with a throwaway
 debug key, so a new APK may refuse to install over the old one and
 uninstalling loses the app's data. Creating one keystore and adding four
-repo secrets fixes updates for all seven apps permanently.
+repo secrets fixes updates for all eight apps permanently.
 
 **3. Backup and restore.**
 Each app writes its data (stations, focus log, register tape, settings,
@@ -120,6 +120,20 @@ out so far because turning them on needs one pass to fix what they find.
 
 **RELAY**
 - Dark mode (comes with item 8 above).
+
+**LORE**
+- Run the model once in CI on an emulator (the smallest model, processor
+  only) so a runtime update that breaks loading is caught before a phone
+  finds it.
+- Speak the question: REEL's speech recognition as an input key.
+- Search by meaning as well as by words (a small embedding model) for
+  questions that share no word with the article that answers them.
+- Kit links in: ASK LORE from a PAGE selection or a REEL transcript
+  (summarise, explain); the plumbing exists, LORE accepts shared text.
+- A plain reader for the packs (browse Wikipedia by title) without asking
+  the model anything.
+- A provider in PAGE that tells LORE which folder the notes are in, so the
+  folder does not have to be picked twice.
 
 ## New apps for the kit
 

@@ -15,9 +15,9 @@ Relay is a tiny Android app that moves whatever your phone is playing onto a Son
 
 ## Field apps in this repo
 
-Besides Relay, the repo holds seven apps in the same Field Design Language,
+Besides Relay, the repo holds eight apps in the same Field Design Language,
 sharing one component library (`field/`). Each app owns one signal colour.
-All seven follow the phone's light / dark setting (PAGE can also be pinned
+All eight follow the phone's light / dark setting (PAGE can also be pinned
 to either).
 
 | App | What it is | Accent |
@@ -26,11 +26,12 @@ to either).
 | **DIAL** (`dial/`) | Web radio on AndroidX Media3 (MP3, AAC, FLAC, HLS; `.pls` / `.m3u` links are followed), showing the programme or track the stream announces. Saved stations, tap twice to tune; search the [Radio Browser](https://www.radio-browser.info/) catalog and tap a result to save it. Keeps playing with the screen off or another app in front (foreground service with a media session: play / pause, stop, next and previous station from the lock screen, the notification and headset or Bluetooth buttons); yields to calls and other players, pauses when headphones are unplugged. Volume and mute, sleep timer, airtime and total listening time, auto-reconnect that backs off from 3 s to a minute. | violet |
 | **GATE** (`gate/`) | Focus timer. Presets 5/10/25/50, hold/resume, log. Ends on time with the app closed (exact alarm), lock-screen countdown. | blue |
 | **LIST** (`list/`) | To-do lists, personal and shared. Lists are Markdown checklists grouped into spaces (folders); a space whose folder a sync app keeps identical on two phones is shared, and conflict copies are merged without losing tasks. Due dates, reminders, steps, important, MY DAY and PLANNED views. Quick add reads `call Eva fri !`. | magenta |
+| **LORE** (`lore/`) | An assistant that runs on the phone, offline. A small language model (Gemma 4 E2B by default, about 2.6 GB; Qwen3 0.6B for older phones; Gemma 4 E4B for the largest) answers through Google's LiteRT-LM runtime, on the graphics chip where the phone allows and on the processor otherwise. Before it answers it looks the question up in your notes folder (the one PAGE writes to; indexed on the phone) and in knowledge packs: the English Wikipedia (full text, introductions only, or the most-read articles) and Wikibooks, as Kiwix archives fetched in the app or added from a file. It quotes what it found as numbered sources you can open, and says when an answer is from memory alone. Chats stay on the phone; the network is used only to fetch the model and packs. | cyan |
 | **PAGE** (`page/`) | Focused writing in Markdown. Focus mode (sentence or paragraph), typewriter scrolling, ZEN (keys hidden), light and dark paper. STYLE check marks filler words, adverbs, passive voice and long sentences (English, on-device). Daily word goal with streak (or goal off: a plain counter), timed sprints. Notes are plain .md / .txt files, autosaved into a folder you pick, so other apps and sync tools can open and move them. Import, share, export .md / .html / .txt, PDF through the print dialog. No permissions. | sage |
 | **REEL** (`reel/`) | Voice recorder (AAC .m4a) with on-device transcription by NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected automatically. Live while recording, or afterwards for any take. One-time ~670 MB model download inside the app (Wi-Fi by default), checksum-verified, then fully offline. | red |
 | **TALLY** (`tally/`) | Calculator with scientific panel, DEG/RAD, percent convention, log. | amber |
 
-Every push to `main` builds all eight APKs; they appear under the run's
+Every push to `main` builds all nine APKs; they appear under the run's
 artifacts and on the `apks` branch. To build locally, run
 `scripts/fetch-sherpa.sh` once first (REEL's speech runtime is not committed).
 
@@ -87,6 +88,10 @@ The apps hand work to each other when both are installed (`field/Kit.kt`):
 - **Text travels.** A REEL transcript becomes a PAGE note (PAGE key). Text
   shared to PAGE becomes a note; text shared to LIST becomes a task, its
   further lines the steps. A LIST task opens as a PAGE note.
+- **Notes are knowledge.** LORE reads the folder PAGE saves notes to, so
+  a question can be answered from what you wrote. A LORE answer becomes a
+  PAGE note (TO PAGE) or a LIST task (TO LIST); text shared to LORE
+  becomes a question.
 
 ## Working on the code
 
