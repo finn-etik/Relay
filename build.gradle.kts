@@ -1,6 +1,4 @@
-plugins {
-    id("com.android.application") version "8.7.3" apply false
-    id("com.android.library") version "8.7.3" apply false
-    id("org.jetbrains.kotlin.android") version "2.0.21" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
-}
+// Nothing to configure here. Each module applies one convention plugin
+// from build-logic/ (field.app, field.android.application, field.library),
+// which brings the Android and Kotlin plugins with it. Versions live in
+// gradle/libs.versions.toml.

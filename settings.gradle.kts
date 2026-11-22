@@ -1,4 +1,6 @@
 pluginManagement {
+    // Shared build setup for the Field apps (the `field.app` plugin).
+    includeBuild("build-logic")
     repositories {
         google()
         mavenCentral()

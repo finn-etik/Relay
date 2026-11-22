@@ -76,6 +76,13 @@ All code is in `app/src/main/java/dev/relay/`.
 
 Unit tests for the protocol and networking parts are in `app/src/test/`.
 
+## Working on the code
+
+- [AGENTS.md](AGENTS.md): how the apps are built and the rules to follow (for people and AI agents alike).
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the map of modules, layers and the build.
+- [docs/REVIEW.md](docs/REVIEW.md): what was found and fixed, and why.
+- [docs/ROADMAP.md](docs/ROADMAP.md): proposed features and new apps.
+
 ## Build
 
 The project ships with the Gradle wrapper. You need JDK 17 and the Android SDK (Android Studio provides both).
