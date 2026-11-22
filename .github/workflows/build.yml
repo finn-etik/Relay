@@ -5,38 +5,40 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Radio Browser entries for Sveriges Radio
+      - name: Does the server interleave ICY metadata when not asked?
         run: |
-          for q in "sveriges%20radio" "sr%20p1" "p3%20sveriges" "p4%20stockholm" "p2%20sveriges"; do
-            echo "=== search $q"
-            curl -s --max-time 20 -A "DIAL/1.2 (probe)" "https://de1.api.radio-browser.info/json/stations/search?name=$q&limit=20&order=votes&reverse=true&hidebroken=true" \
-              | jq -r '.[] | [.name, .url, .url_resolved, .codec, (.bitrate|tostring), (.hls|tostring), (.lastcheckok|tostring), .countrycode] | join(" | ")' || true
-          done
-      - name: Stream responses
-        run: |
-          probe() {
-            echo; echo "=================== $2  [UA: $1]"
-            curl -s -L --max-redirs 8 --max-time 8 -A "$1" -H "Icy-MetaData: 1" -D /tmp/h -o /tmp/b "$2" || true
-            grep -i -E "^HTTP|^location|^content-type|^icy|^server|^transfer|^content-length|^connection|^accept-ranges|^content-range" /tmp/h || true
-            echo "bytes: $(stat -c %s /tmp/b 2>/dev/null)"; head -c 48 /tmp/b | xxd | head -3
-            rm -f /tmp/h /tmp/b
-          }
+          cat > /tmp/adts.py <<'PY'
+          import sys
+          b = open(sys.argv[1], 'rb').read()
+          pos = 0; n = 0
+          while pos + 7 <= len(b):
+              if b[pos] != 0xFF or (b[pos+1] & 0xF6) != 0xF0:
+                  print(f"  ADTS sync LOST at byte {pos} after {n} frames; bytes there: {b[pos:pos+8].hex()}")
+                  break
+              length = ((b[pos+3] & 3) << 11) | (b[pos+4] << 3) | (b[pos+5] >> 5)
+              if length < 7: print("  bad frame length at", pos); break
+              pos += length; n += 1
+          else:
+              print(f"  ADTS framing intact for {n} frames over {pos} bytes")
+          PY
           SF="stagefright/1.2 (Linux;Android 14)"
-          for u in \
-            "https://live1.sr.se/p1-aac-320" "https://live1.sr.se/p1-aac-128" "https://live1.sr.se/p1-mp3-96" "https://live1.sr.se/p1-mp3-192" \
-            "https://live1.sr.se/p3-aac-320" "https://live1.sr.se/p1-flac" \
-            "http://sverigesradio.se/topsy/direkt/srapi/132.mp3" "https://sverigesradio.se/topsy/direkt/srapi/132.mp3" \
-            "http://sverigesradio.se/topsy/direkt/srapi/132-hi-aac-http" "https://sverigesradio.se/topsy/direkt/132-hi-aac" \
-            "https://sverigesradio.se/topsy/direkt/132-hi-mp3.m3u" "https://sverigesradio.se/topsy/direkt/132-hi-aac.pls" \
-            "https://http-live.sr.se/p1-mp3-192" "https://edge1.sr.se/p1-aac-320" "https://ice1.somafm.com/groovesalad-128-mp3"; do
-            probe "$SF" "$u"
+          for mode in none zero one; do
+            for u in "https://edge1.sr.se/p1-aac-320" "https://edge1.sr.se/p3-aac-320"; do
+              echo "=== $u  Icy-MetaData header: $mode"
+              case $mode in
+                none) curl -s --max-time 6 -A "$SF" -D /tmp/h -o /tmp/b "$u" || true ;;
+                zero) curl -s --max-time 6 -A "$SF" -H "Icy-MetaData: 0" -D /tmp/h -o /tmp/b "$u" || true ;;
+                one)  curl -s --max-time 6 -A "$SF" -H "Icy-MetaData: 1" -D /tmp/h -o /tmp/b "$u" || true ;;
+              esac
+              grep -i -E "^HTTP|icy-metaint|content-type" /tmp/h || true
+              echo "  bytes: $(stat -c %s /tmp/b)"; python3 /tmp/adts.py /tmp/b
+              echo "  around 16384: $(xxd -s 16376 -l 24 -p /tmp/b)"
+            done
           done
-          probe "curl/8" "https://live1.sr.se/p1-aac-320"
-          probe "Mozilla/5.0" "https://live1.sr.se/p1-aac-320"
-          echo; echo "=== range request (what Android's media stack sends)"
-          curl -s -L --max-time 8 -A "$SF" -H "Range: bytes=0-" -D - -o /dev/null "https://live1.sr.se/p1-aac-320" | grep -i -E "^HTTP|content-type|content-range|accept-ranges|location" || true
-          echo "=== HTTP version"
-          curl -s -L --max-time 6 -A "$SF" -o /dev/null -w "%{http_version} %{response_code} %{url_effective}\n" "https://live1.sr.se/p1-aac-320" || true
-          curl -s -L --http1.1 --max-time 6 -A "$SF" -o /dev/null -w "forced1.1: %{http_version} %{response_code}\n" "https://live1.sr.se/p1-aac-320" || true
-          echo "=== SR API channel list"
-          curl -s --max-time 20 "https://api.sr.se/api/v2/channels?format=json&pagination=false" | jq -r '.channels[] | [(.id|tostring), .name, .channeltype, .liveaudio.url] | join(" | ")' | head -60 || true
+          echo "=== with Range: bytes=0- and no Icy header (Android MediaPlayer's request)"
+          curl -s --max-time 6 -A "$SF" -H "Range: bytes=0-" -D /tmp/h -o /tmp/b "https://edge1.sr.se/p1-aac-320" || true
+          cat /tmp/h; python3 /tmp/adts.py /tmp/b
+          echo "=== HEAD request"
+          curl -s --max-time 6 -A "$SF" -I "https://edge1.sr.se/p1-aac-320" || true
+          echo "=== TLS"
+          echo | openssl s_client -connect edge1.sr.se:443 -servername edge1.sr.se 2>/dev/null | grep -E "Protocol|Cipher|Verify return|subject=|issuer=" | head -8
