@@ -58,7 +58,8 @@ import kotlinx.coroutines.launch
  * Skin: signal violet. Extension: input row.
  *
  * The screen only shows DialStore's state and sends commands; the stream
- * itself is played by DialService, so it survives the screen. Station search
+ * itself is played by DialService (AndroidX Media3), so it survives the
+ * screen. Station search
  * uses the Radio Browser catalog (radio-browser.info, CC0 data).
  */
 class MainActivity : ComponentActivity() {
@@ -184,7 +185,7 @@ fun DialApp() {
         Phase.OFF -> "STANDBY"
     }
     val dimLine = when (phase) {
-        Phase.ON -> play?.url ?: "STREAM LIVE / PLAYING"
+        Phase.ON -> state.nowPlaying.uppercase().ifEmpty { play?.url ?: "STREAM LIVE / PLAYING" }
         Phase.CONNECT -> if (state.attempts > 0) "RETRY " + Fmt.pad2(state.attempts) + " / CONNECTING" else "CONNECTING TO STREAM"
         Phase.ERR ->
             if (state.retry) "STREAM DOWN / RETRY IN " + Dial.retryDelayMs(state.attempts) / 1000 + " S"

@@ -5,48 +5,57 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
-import android.media.MediaMetadata
-import android.media.MediaPlayer
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
-import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.PowerManager
+import androidx.annotation.OptIn
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Plays one stream. A foreground service of type "mediaPlayback", so the
- * radio keeps playing with the screen off or another app in front (in DIAL
- * 1.1 the player lived in the screen and Android was free to stop it).
+ * radio keeps playing with the screen off or another app in front.
  *
- * It publishes a media session, which is what puts transport controls on
+ * The player is AndroidX Media3's ExoPlayer. Android's built-in MediaPlayer
+ * was measured against real streams (on an emulator, Android 14): it never
+ * finishes preparing Sveriges Radio's AAC streams and rejects FLAC, while
+ * ExoPlayer plays every one of them and also reads the programme title the
+ * stream carries. ExoPlayer handles audio focus (silent for a call or a
+ * navigation prompt, then back), unplugged headphones, and keeping the CPU
+ * and Wi-Fi awake while playing.
+ *
+ * The service publishes a media session, which puts transport controls on
  * the lock screen and in the notification shade and routes headset and
  * Bluetooth buttons here: play / pause, stop, next and previous station.
  * A radio stream cannot be paused in place, so PAUSE drops the connection
  * and PLAY reconnects to the same station; the paused service stays for
  * [IDLE_MS] so a headset button can bring it back, then goes away.
  *
- * It also does what a well-behaved player owes the phone: asks for audio
- * focus (pauses for another player, goes silent for a call or a navigation
- * prompt and comes back), pauses when headphones are unplugged, and keeps
- * the CPU and Wi-Fi awake only while a stream is wanted.
- *
- * Everything runs on the main thread: commands, session callbacks,
- * MediaPlayer callbacks (delivered to the looper the player was created
- * on) and the timers.
+ * Everything runs on the main thread (commands, session and player
+ * callbacks, timers) except downloading a playlist link, which runs on
+ * [io] and posts its result back.
  */
+@OptIn(UnstableApi::class)
 class DialService : Service() {
 
     companion object {
@@ -80,38 +89,48 @@ class DialService : Service() {
     private val retryTask = Runnable { reconnect() }
     private val sleepTask = Runnable { stopPlayback() }
     private val idleTask = Runnable { stopPlayback() }
+    private val io: ExecutorService = Executors.newSingleThreadExecutor()
 
     private lateinit var session: MediaSession
-    private var player: MediaPlayer? = null
+    private lateinit var player: ExoPlayer
+
     /** The station PLAY returns to after a pause. */
     private var lastId = -1
     private var lastName = ""
     private var paused = false
 
-    private var wifiLock: WifiManager.WifiLock? = null
-    private var focusRequest: AudioFocusRequest? = null
-    private var silenced = false // focus lost for a moment (call, prompt)
-    private var ducked = false
-    private var noisyRegistered = false
+    /** Counts connects, so a playlist download that finishes late is not played over a newer station. */
+    private var generation = 0
+    /** A link that turned out not to be audio is tried once as a playlist. */
+    private var triedAsPlaylist = false
 
-    private val attributes: AudioAttributes = AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_MEDIA)
-        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-        .build()
-
-    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
-        when (change) {
-            AudioManager.AUDIOFOCUS_LOSS -> pausePlayback() // another player took over; PLAY brings DIAL back
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { silenced = true; applyControls() }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> { ducked = true; applyControls() }
-            AudioManager.AUDIOFOCUS_GAIN -> { silenced = false; ducked = false; applyControls() }
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isPlaying) return
+            update { it.onAir(now()) }
+            publish()
         }
-    }
 
-    /** Headphones unplugged or Bluetooth gone: do not carry on through the speaker. */
-    private val noisyReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) pausePlayback()
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            // A live stream has no end: reaching one means the server closed it.
+            if (playbackState == Player.STATE_ENDED) dropped(null)
+        }
+
+        override fun onPlayerError(error: PlaybackException) = dropped(error)
+
+        override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+            val title = mediaMetadata.title?.toString().orEmpty()
+            if (title.trim() == state().nowPlaying) return
+            update { it.title(title) }
+            publish()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            // ExoPlayer stopped itself: another app took the audio for good, or the headphones came out.
+            // Either way DIAL pauses (PLAY brings it back) rather than holding a silent connection.
+            val yielded = reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS ||
+                reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY
+            if (!playWhenReady && yielded) pausePlayback()
         }
     }
 
@@ -140,6 +159,21 @@ class DialService : Service() {
         )
         session = MediaSession(this, "DIAL")
         session.setCallback(sessionCallback, handler)
+
+        // Old broadcaster links hop from http to https; the default refuses that.
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent("DIAL/1.2 (Android web radio player)")
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(DefaultDataSource.Factory(this, http)))
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
+                /* handleAudioFocus = */ true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+        player.addListener(playerListener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -155,15 +189,17 @@ class DialService : Service() {
             ACTION_NEXT -> skip(1)
             ACTION_PREV -> skip(-1)
             ACTION_STOP -> stopPlayback()
-            else -> if (player == null && !paused) shutDown()
+            else -> if (state().phase == Phase.OFF && !paused) shutDown()
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        releasePlayer()
-        releaseSystem()
+        generation++
+        io.shutdownNow()
+        player.removeListener(playerListener)
+        player.release()
         // Killed while a stream was wanted: close the books so the clock does not run on.
         val phase = state().phase
         if (phase == Phase.ON || phase == Phase.CONNECT) update { it.stop(now()) }
@@ -189,51 +225,58 @@ class DialService : Service() {
     private fun connect(station: Station, retry: Boolean) {
         handler.removeCallbacks(retryTask)
         handler.removeCallbacks(idleTask)
-        releasePlayer()
+        player.stop()
+        generation++
+        triedAsPlaylist = false
         paused = false
         lastId = station.id
         lastName = station.name
         update { if (retry) it.reconnect(now()) else it.tune(station, now()) }
-        if (!acquireSystem()) {
-            // Audio focus refused (a call is active): do not talk over it.
-            update { it.dropped(now()) }
-            shutDown()
-            return
-        }
         session.isActive = true
-        val mp = MediaPlayer()
-        try {
-            mp.setAudioAttributes(attributes)
-            mp.setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-            mp.setDataSource(station.url)
-            mp.setOnPreparedListener { ready ->
-                if (player === ready) {
-                    applyControls()
-                    ready.start()
-                    update { it.onAir(now()) }
-                    publish()
-                }
-            }
-            mp.setOnErrorListener { failed, _, _ ->
-                dropped(failed)
-                true
-            }
-            // A live stream has no end: reaching one means the server closed it.
-            mp.setOnCompletionListener { ended -> dropped(ended) }
-            player = mp
-            mp.prepareAsync()
-        } catch (_: Exception) {
-            player = mp
-            dropped(mp)
-            return
-        }
+        if (Playlist.looksLikePlaylist(station.url)) openPlaylist(station.url) else open(station.url, hls = false)
         publish()
     }
 
-    /** The stream failed or ended. Callbacks from a player that was already replaced are ignored. */
-    private fun dropped(mp: MediaPlayer) {
-        if (player !== mp) return
-        releasePlayer()
+    /** Hands a stream address to the player. */
+    private fun open(url: String, hls: Boolean) {
+        val item = MediaItem.Builder().setUri(url)
+        if (hls) item.setMimeType(MimeTypes.APPLICATION_M3U8)
+        player.setMediaItem(item.build())
+        player.prepare()
+        player.playWhenReady = true
+        applyControls()
+    }
+
+    /** Downloads a .pls / .m3u link off the main thread and plays the stream it names. */
+    private fun openPlaylist(url: String) {
+        triedAsPlaylist = true
+        val wanted = generation
+        io.execute {
+            val text = PlaylistFetch.text(url)
+            handler.post {
+                if (wanted != generation) return@post // a newer station was tuned meanwhile
+                val stream = text?.let { Playlist.firstStream(it) }
+                when {
+                    text != null && Playlist.isHls(text) -> open(url, hls = true)
+                    stream != null -> open(stream, hls = false)
+                    else -> dropped(null)
+                }
+            }
+        }
+    }
+
+    /** The stream failed or ended. */
+    private fun dropped(error: PlaybackException?) {
+        val s = state()
+        if (s.phase == Phase.OFF) return
+        player.stop()
+        // Not audio at all? It may be a playlist without the usual extension: look inside once.
+        val notAudio = error?.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+        val station = s.playing
+        if (notAudio && !triedAsPlaylist && station != null) {
+            openPlaylist(station.url)
+            return
+        }
         update { it.dropped(now()) }
         if (state().retry) {
             publish()
@@ -276,9 +319,9 @@ class DialService : Service() {
             return
         }
         handler.removeCallbacks(retryTask)
-        releasePlayer()
+        generation++
+        player.stop()
         update { it.stop(now()) }
-        releaseSystem()
         paused = true
         publish()
         handler.removeCallbacks(idleTask)
@@ -286,87 +329,28 @@ class DialService : Service() {
     }
 
     private fun stopPlayback() {
-        releasePlayer()
+        generation++
+        player.stop()
         update { it.stop(now()) }
         shutDown()
     }
 
     private fun shutDown() {
         handler.removeCallbacksAndMessages(null)
+        generation++
         paused = false
-        releaseSystem()
+        player.stop()
         session.isActive = false
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    private fun releasePlayer() {
-        player?.let {
-            try { it.stop() } catch (_: Exception) {}
-            try { it.release() } catch (_: Exception) {}
-        }
-        player = null
-    }
-
-    /** Volume, mute and focus state onto the player; (re)arms the sleep timer. */
+    /** Volume and mute onto the player; (re)arms the sleep timer. */
     private fun applyControls() {
         val s = state()
-        val v = when {
-            silenced -> 0f
-            ducked -> s.volumeFraction * 0.25f
-            else -> s.volumeFraction
-        }
-        try { player?.setVolume(v, v) } catch (_: Exception) {}
+        player.volume = s.volumeFraction
         handler.removeCallbacks(sleepTask)
         if (s.sleepAt > 0L) handler.postDelayed(sleepTask, maxOf(0L, s.sleepAt - now()))
-    }
-
-    // ---- audio focus, noisy receiver, Wi-Fi lock ----
-
-    /** False if audio focus was refused. */
-    private fun acquireSystem(): Boolean {
-        if (focusRequest == null) {
-            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(attributes)
-                .setOnAudioFocusChangeListener(focusListener, handler)
-                .build()
-            val result = getSystemService(AudioManager::class.java).requestAudioFocus(request)
-            if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return false
-            focusRequest = request
-            silenced = false
-            ducked = false
-        }
-        if (!noisyRegistered) {
-            ContextCompat.registerReceiver(
-                this, noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
-                ContextCompat.RECEIVER_NOT_EXPORTED,
-            )
-            noisyRegistered = true
-        }
-        if (wifiLock == null) {
-            try {
-                @Suppress("DEPRECATION") // the non-deprecated modes only hold while the app is on screen
-                val lock = applicationContext.getSystemService(WifiManager::class.java)
-                    .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "dial:stream")
-                lock.setReferenceCounted(false)
-                lock.acquire()
-                wifiLock = lock
-            } catch (_: Exception) {
-                // No Wi-Fi lock: the stream may stutter with the screen off, but it plays.
-            }
-        }
-        return true
-    }
-
-    private fun releaseSystem() {
-        focusRequest?.let { getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }
-        focusRequest = null
-        if (noisyRegistered) {
-            try { unregisterReceiver(noisyReceiver) } catch (_: Exception) {}
-            noisyRegistered = false
-        }
-        wifiLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) {} }
-        wifiLock = null
     }
 
     // ---- media session and notification ----
@@ -382,6 +366,9 @@ class DialService : Service() {
     }
 
     private fun stationName(): String = state().playing?.name ?: lastName.ifEmpty { "DIAL" }
+
+    /** Second line everywhere: the programme or track if the stream names one, else the status. */
+    private fun subtitle(): String = state().nowPlaying.ifEmpty { statusText() }
 
     /** Pushes the current state to the session (lock screen, headset routing) and the notification. */
     private fun publish() {
@@ -406,10 +393,10 @@ class DialService : Service() {
                 .build()
         )
         session.setMetadata(
-            MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, stationName())
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, statusText())
-                .putLong(MediaMetadata.METADATA_KEY_DURATION, -1L) // no seek bar
+            android.media.MediaMetadata.Builder()
+                .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, stationName())
+                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, subtitle())
+                .putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, -1L) // no seek bar
                 .build()
         )
         getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification())
@@ -430,7 +417,7 @@ class DialService : Service() {
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(stationName())
-            .setContentText(statusText())
+            .setContentText(subtitle())
             .setOngoing(!paused)
             .setVisibility(Notification.VISIBILITY_PUBLIC) // station name and controls on the lock screen
             .setContentIntent(open)

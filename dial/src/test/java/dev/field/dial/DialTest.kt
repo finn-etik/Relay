@@ -115,4 +115,32 @@ class DialTest {
         assertEquals(a, DialState(stations = listOf(a)).neighbour(1, 1))
         assertNull(DialState().neighbour(1, 1))
     }
+
+    @Test fun nowPlayingFollowsTheStreamAndClearsWithIt() {
+        assertEquals("", DialState().title("X").nowPlaying) // nothing tuned: ignored
+        var d = DialState().tune(a, 0).onAir(0).title("  Filosofiska rummet ")
+        assertEquals("Filosofiska rummet", d.nowPlaying)
+        assertEquals("", d.dropped(5 * s).nowPlaying)
+        assertEquals("", d.tune(b, 5 * s).nowPlaying)
+        d = d.stop(5 * s)
+        assertEquals("", d.nowPlaying)
+    }
+
+    @Test fun playlistLinksAreRecognisedByExtension() {
+        assertEquals(true, Playlist.looksLikePlaylist("https://sverigesradio.se/topsy/direkt/132-hi-aac.pls"))
+        assertEquals(true, Playlist.looksLikePlaylist("http://x.example/LIVE.M3U?session=1"))
+        assertEquals(false, Playlist.looksLikePlaylist("https://x.example/live.m3u8")) // HLS: the player's job
+        assertEquals(false, Playlist.looksLikePlaylist("https://live1.sr.se/p1-aac-320"))
+    }
+
+    @Test fun plsAndM3uGiveTheirFirstStream() {
+        val pls = "[playlist]\r\n\r\nNumberOfEntries=1\r\nFile1=https://live1.sr.se/p1-aac-320\r\nTitle1=P1\r\nLength1=-1\r\nVersion=2\r\n"
+        assertEquals("https://live1.sr.se/p1-aac-320", Playlist.firstStream(pls))
+        val m3u = "#EXTM3U\r\n\r\n#EXTINF:-1,P1\r\nhttps://live1.sr.se/p1-mp3-96\r\nhttps://other.example/x\r\n"
+        assertEquals("https://live1.sr.se/p1-mp3-96", Playlist.firstStream(m3u))
+        assertNull(Playlist.firstStream("<html>not a playlist</html>"))
+        assertNull(Playlist.firstStream(""))
+        assertEquals(true, Playlist.isHls("#EXTM3U\n#EXT-X-VERSION:3\nchunk.ts"))
+        assertEquals(false, Playlist.isHls(m3u))
+    }
 }

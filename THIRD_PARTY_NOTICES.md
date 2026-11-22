@@ -37,6 +37,12 @@ REEL downloads, at the user's request and not inside the APK:
 |-------|---------|
 | NVIDIA Parakeet TDT 0.6B v3, int8 ONNX export by the sherpa-onnx project (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`) | CC-BY-4.0, NVIDIA Corporation. Attribution is shown in REEL's model card. |
 
+DIAL additionally ships:
+
+| Component | License |
+|-----------|---------|
+| AndroidX Media3 1.4.1 (`media3-exoplayer`, `media3-exoplayer-hls` and their Media3 dependencies) | Apache License 2.0, The Android Open Source Project |
+
 DIAL reads, at runtime and not inside the APK:
 
 | Source | Data license | Used for |

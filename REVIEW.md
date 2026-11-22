@@ -211,3 +211,40 @@ rest (was 24).
 **Not done**
 - A headset button does not start DIAL cold: once the service has shut down
   (STOP, or ten minutes paused) playback starts from the app again.
+
+# DIAL: Sveriges Radio did not play
+
+Measured on an Android 14 emulator in CI, the same streams through both
+players:
+
+| Stream | Android MediaPlayer | Media3 ExoPlayer |
+|---|---|---|
+| SR AAC (`live1.sr.se/p1-aac-320`, `-128`, `-32`, P3, the `topsy` AAC link) | never finishes preparing | plays |
+| SR MP3 (`live1.sr.se/p1-mp3-96`, `srapi/132.mp3`) | plays | plays |
+| SR FLAC (`live1.sr.se/p2-flac`) | error | plays |
+| SomaFM, Radio Paradise (MP3) | plays | plays |
+
+The servers were checked first and behave correctly (clean ADTS AAC, 48 kHz,
+redirect from `live1` to `edge1/2`, metadata only when asked for). The
+catalog search returns the AAC links for Sveriges Radio, which is why "all
+of SR" appeared dead. And because the old player never reported an error
+for them, DIAL sat in CONNECT forever instead of retrying.
+
+- DIAL now plays through Media3 ExoPlayer, which also takes over audio
+  focus, the unplugged-headphones pause and the wake / Wi-Fi locks that were
+  hand-written before.
+- The stream's own title (SR sends the programme name, music stations the
+  track) is shown in the register, the notification and on the lock screen.
+- `.pls` and `.m3u` links, which is what Sveriges Radio's own "direktlänkar"
+  page hands out, are opened and the stream inside is played. A link that
+  turns out not to be audio is tried once as a playlist.
+
+# CAL timeline and app name
+
+- The hour grid and the NOW line were full-width boxes shifted right by an
+  offset, so they ran past the card's right edge. They are inset with
+  padding now.
+- Hour labels wrapped onto two lines with a larger system font. They are
+  single-line and the column is wider.
+- Relay's launcher name is RELAY.
+

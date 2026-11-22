@@ -35,6 +35,8 @@ data class DialState(
     val retry: Boolean = true,
     /** Sleep timer: the instant playback stops by itself; 0 = off. */
     val sleepAt: Long = 0L,
+    /** What the stream says is on now (programme or track); "" if it does not say. */
+    val nowPlaying: String = "",
 ) {
     val selected: Station? get() = stations.firstOrNull { it.id == selId }
     val volumeFraction: Float get() = if (muted) 0f else vol / Dial.MAX_VOLUME.toFloat()
@@ -54,7 +56,7 @@ data class DialState(
     // ---- playback transitions ----
 
     fun tune(st: Station, now: Long): DialState =
-        banked(now).copy(playing = st, selId = st.id, phase = Phase.CONNECT, attempts = 0, airBankedMs = 0L)
+        banked(now).copy(playing = st, selId = st.id, phase = Phase.CONNECT, attempts = 0, airBankedMs = 0L, nowPlaying = "")
 
     /** An automatic reconnect: same station, airtime carries on, attempts count up. */
     fun reconnect(now: Long): DialState =
@@ -65,10 +67,13 @@ data class DialState(
 
     /** The stream failed or ended. */
     fun dropped(now: Long): DialState =
-        if (phase == Phase.OFF) this else banked(now).copy(phase = Phase.ERR)
+        if (phase == Phase.OFF) this else banked(now).copy(phase = Phase.ERR, nowPlaying = "")
 
     fun stop(now: Long): DialState =
-        banked(now).copy(phase = Phase.OFF, playing = null, attempts = 0, airBankedMs = 0L, sleepAt = 0L)
+        banked(now).copy(phase = Phase.OFF, playing = null, attempts = 0, airBankedMs = 0L, sleepAt = 0L, nowPlaying = "")
+
+    /** The stream announced a new title. Ignored unless a station is wanted. */
+    fun title(text: String): DialState = if (playing == null) this else copy(nowPlaying = text.trim())
 
     // ---- stations and settings ----
 
@@ -149,4 +154,33 @@ object Dial {
         if (hit.bitrate > 0) "${hit.bitrate} KBPS" else null,
         hit.tags.takeIf { it.isNotBlank() }?.take(24)?.uppercase(),
     ).joinToString(" / ")
+}
+
+/**
+ * Playlist links (.pls, .m3u): small text files that point at the real
+ * stream. Broadcasters publish these (Sveriges Radio's "direktlänkar" are
+ * playlists), but a player needs the address inside. Pure.
+ */
+object Playlist {
+
+    /** By file extension. `.m3u8` is HLS, which the player handles itself. */
+    fun looksLikePlaylist(url: String): Boolean {
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        return path.endsWith(".pls") || path.endsWith(".m3u")
+    }
+
+    /** An HLS playlist saved under a plain .m3u name: play the link itself, as HLS. */
+    fun isHls(text: String): Boolean = "#EXT-X-" in text
+
+    /** The first stream address in a PLS (`File1=http…`) or M3U (one address per line) playlist. */
+    fun firstStream(text: String): String? {
+        for (raw in text.lineSequence()) {
+            val line = raw.trim().removePrefix("\uFEFF")
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith("[")) continue
+            val isFileEntry = '=' in line && line.substringBefore('=').trim().lowercase().startsWith("file")
+            val candidate = if (isFileEntry) line.substringAfter('=').trim() else line
+            if (Dial.isStreamUrl(candidate)) return candidate
+        }
+        return null
+    }
 }
