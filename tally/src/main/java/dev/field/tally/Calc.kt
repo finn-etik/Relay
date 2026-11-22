@@ -138,8 +138,32 @@ object Calc {
 
         val r = expr().v
         if (p < t.size) throw Err("SYNTAX")
+        if (r.isNaN()) throw Err("DOMAIN") // e.g. (-8)^0.5: undefined, not "too large"
         if (!r.isFinite()) throw Err("RANGE")
         return r
+    }
+
+    private const val OPERATORS = "+−×÷^"
+
+    /**
+     * Keypad typing rules: the line after [text] is keyed onto [expr].
+     * - An operator replaces the operator before it ("5+" then "×" is "5×"),
+     *   except "−" after × ÷ ^, which is a sign ("5×−3").
+     * - Only "−" may start a line or follow "(".
+     * - A number takes one decimal point.
+     */
+    fun type(expr: String, text: String): String {
+        if (text.length == 1 && text[0] in OPERATORS) {
+            val op = text[0]
+            if (expr.isEmpty() || expr.last() == '(') return if (op == '−') expr + text else expr
+            val last = expr.last()
+            if (last !in OPERATORS) return expr + text
+            if (op == '−' && last != '−' && last != '+') return expr + text
+            val head = expr.trimEnd { it in OPERATORS }
+            return if (head.isEmpty() || head.last() == '(') (if (op == '−') head + text else head) else head + text
+        }
+        if (text == "." && '.' in expr.takeLastWhile { it.isDigit() || it == '.' }) return expr
+        return expr + text
     }
 
     private fun function(name: String, r: Double, rad: Boolean): Double {

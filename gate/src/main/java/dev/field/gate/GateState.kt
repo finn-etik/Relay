@@ -71,9 +71,18 @@ data class GateState(
 
     fun selectPreset(min: Int): GateState = if (phase == Phase.STANDBY) copy(presetMin = min) else this
 
+    /** Fine-tunes the session length between the presets, within 1..180 minutes. */
+    fun adjustPreset(delta: Int): GateState = selectPreset((presetMin + delta).coerceIn(MIN_PRESET, MAX_PRESET))
+
+    /** Focus minutes completed in [from, toExclusive), e.g. today. */
+    fun minutesBetween(from: Long, toExclusive: Long): Int =
+        log.filter { it.endedAt in from until toExclusive }.sumOf { it.minutes }
+
     companion object {
         const val MAX_LOG = 30
         const val DONE_FLASH_MS = 3_000L
         val PRESETS = listOf(5, 10, 25, 50)
+        const val MIN_PRESET = 1
+        const val MAX_PRESET = 180
     }
 }

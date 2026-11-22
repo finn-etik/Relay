@@ -95,7 +95,16 @@ object CalLogic {
         return out
     }
 
-    fun status(entry: Entry, nowMs: Long): EntryStatus = when {
+    /**
+     * All-day entries are stored as UTC midnights, so comparing their instants
+     * with the clock made them "live" from 01:00 to 01:00 in UTC+1 (and at
+     * other wrong hours elsewhere). They are judged by calendar day instead,
+     * and are never LIVE: a birthday should not blink all day.
+     */
+    fun status(entry: Entry, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): EntryStatus = when {
+        entry.allDay ->
+            if (entry.date.isBefore(Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate())) EntryStatus.PAST
+            else EntryStatus.UPCOMING
         nowMs < entry.instanceBegin -> EntryStatus.UPCOMING
         nowMs < entry.instanceEnd -> EntryStatus.LIVE
         else -> EntryStatus.PAST
@@ -135,17 +144,43 @@ object CalLogic {
         return result
     }
 
+    /** First day and day count of an all-day occurrence (UTC midnights, end exclusive). */
+    fun allDaySpan(beginMs: Long, endMs: Long): Pair<LocalDate, Int> {
+        val first = Instant.ofEpochMilli(beginMs).atZone(ZoneOffset.UTC).toLocalDate()
+        val days = ((endMs - beginMs) / 86_400_000L).toInt().coerceAtLeast(1)
+        return first to days
+    }
+
+    /** Quick add result: [startMin] null = all-day. */
+    data class QuickAdd(val startMin: Int?, val durationMin: Int, val title: String)
+
+    private val quick = Regex("^(\\d{1,2})(?:[:.](\\d{2}))?(?:\\s*[-\u2013]\\s*(\\d{1,2})(?:[:.](\\d{2}))?)?\\s+(.+)$")
+
     /**
-     * Quick add: "14:30 DENTIST" -> a 60-minute entry at 14:30;
-     * "9 RUN" or "9.15 RUN" also work; anything else is an all-day entry.
-     * Returns (start minute or null for all-day, title).
+     * Quick add: "14:30 DENTIST" is a 60-minute entry at 14:30; "9 RUN" and
+     * "9.15 RUN" also work. A range sets the length: "14:30-16:00 WORKSHOP".
+     * A bare end hour that is not after the start is read as afternoon
+     * ("9-5 OFFICE" ends 17:00), otherwise as the next day ("22-6 SHIFT").
+     * Anything else is an all-day entry.
      */
-    fun parseQuickAdd(text: String): Pair<Int?, String> {
+    fun parseQuick(text: String): QuickAdd {
         val t = text.trim()
-        val m = Regex("^(\\d{1,2})(?:[:.](\\d{2}))?\\s+(.+)$").find(t) ?: return null to t
+        val allDay = QuickAdd(null, 60, t)
+        val m = quick.find(t) ?: return allDay
         val h = m.groupValues[1].toInt()
         val min = m.groupValues[2].ifEmpty { "0" }.toInt()
-        if (h > 23 || min > 59) return null to t
-        return (h * 60 + min) to m.groupValues[3].trim()
+        if (h > 23 || min > 59) return allDay
+        val start = h * 60 + min
+        val title = m.groupValues[5].trim()
+        if (m.groupValues[3].isEmpty()) return QuickAdd(start, 60, title)
+        val endH = m.groupValues[3].toInt()
+        val endMin = m.groupValues[4].ifEmpty { "0" }.toInt()
+        if (endH > 24 || endMin > 59 || (endH == 24 && endMin > 0)) return allDay
+        var end = endH * 60 + endMin
+        if (end <= start) end += if (endH < 12 && end + 720 > start) 720 else 1440
+        return QuickAdd(start, end - start, title)
     }
+
+    /** (start minute or null for all-day, title). */
+    fun parseQuickAdd(text: String): Pair<Int?, String> = parseQuick(text).let { it.startMin to it.title }
 }

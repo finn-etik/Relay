@@ -71,4 +71,25 @@ class CalcTest {
         assertEquals("0", Calc.fmt(-0.0))
         assertEquals("0.333333333333", Calc.fmt(1.0 / 3))
     }
+
+    @Test fun undefinedPowerIsDomainNotRange() {
+        assertEquals("DOMAIN", err("(−8)^0.5"))
+        assertEquals("RANGE", err("10^400"))
+    }
+
+    @Test fun typingRules() {
+        assertEquals("5×", Calc.type("5+", "×"))       // operator replaces operator
+        assertEquals("5×−", Calc.type("5×", "−"))      // minus after × is a sign
+        assertEquals("5−", Calc.type("5×−", "−"))      // ...but only one
+        assertEquals("5−", Calc.type("5+", "−"))
+        assertEquals("", Calc.type("", "×"))           // a line cannot start with ×
+        assertEquals("−", Calc.type("", "−"))
+        assertEquals("(", Calc.type("(", "+"))
+        assertEquals("(−", Calc.type("(", "−"))
+        assertEquals("", Calc.type("−", "+"))
+        assertEquals("1.5", Calc.type("1.5", "."))     // one decimal point per number
+        assertEquals("1.5+2.", Calc.type("1.5+2", "."))
+        assertEquals("12", Calc.type("1", "2"))
+        assertEquals("2sin(", Calc.type("2", "sin("))
+    }
 }

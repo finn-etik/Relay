@@ -1,9 +1,12 @@
 package dev.field.tally
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +38,6 @@ import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
 import dev.field.ui.FieldText
-import dev.field.ui.FieldTheme
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
@@ -44,7 +46,7 @@ import dev.field.ui.RegisterPanel
 import dev.field.ui.SectionHeader
 import dev.field.ui.SkinLine
 import dev.field.ui.StatusHeader
-import dev.field.ui.fieldEdgeToEdge
+import dev.field.ui.fieldContent
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import java.util.Locale
@@ -53,8 +55,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fieldEdgeToEdge()
-        setContent { FieldTheme(FieldColors.SignalAmber) { TallyApp() } }
+        fieldContent(FieldColors.SignalAmber) { TallyApp() }
     }
 }
 
@@ -103,8 +104,17 @@ fun TallyApp() {
     var expr by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var locked by rememberSaveable { mutableStateOf(false) }
-    var sci by rememberSaveable { mutableStateOf(false) }
-    var rad by rememberSaveable { mutableStateOf(false) }
+    // The two mode switches are settings: they survive a restart.
+    val prefs = remember { context.getSharedPreferences("tally", Context.MODE_PRIVATE) }
+    var sci by remember { mutableStateOf(prefs.getBoolean("sci", false)) }
+    var rad by remember { mutableStateOf(prefs.getBoolean("rad", false)) }
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
     var keys by rememberSaveable { mutableIntStateOf(0) }
     val log = remember { mutableStateListOf<Pair<String, String>>().apply { addAll(LogStore.load(context)) } }
 
@@ -123,8 +133,8 @@ fun TallyApp() {
         error = null
         locked = false
         keys++
-        if (fresh) expr = text
-        else if (expr.length + text.length <= MAX_EXPR) expr += text
+        val next = Calc.type(if (fresh) "" else expr, text)
+        if (next.length <= MAX_EXPR) expr = next
     }
 
     fun del() {
@@ -206,8 +216,16 @@ fun TallyApp() {
             right = (if (rad) "RAD" else "DEG") + " / 12-DIG",
         )
 
-        RegisterPanel {
-            PanelTitle(led, if (error != null) "FAULT" else if (locked) "HOLD" else "LIVE")
+        // Tap the register to copy the value it shows.
+        RegisterPanel(
+            Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                if (error == null && preview != null) {
+                    context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("TALLY", preview))
+                    copied = true
+                }
+            },
+        ) {
+            PanelTitle(led, if (copied) "COPIED" else if (error != null) "FAULT" else if (locked) "HOLD" else "LIVE")
             Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 FieldText(
                     if (error != null) "ERR / $error / EDIT TO FIX" else expr.ifEmpty { "NO INPUT" },
@@ -218,7 +236,7 @@ fun TallyApp() {
                 FieldText(
                     big, 22.sp, Modifier.fillMaxWidth().padding(top = 4.dp),
                     weight = FontWeight.Black,
-                    color = if (error != null) amber else FieldColors.Paper,
+                    color = if (error != null) amber else FieldColors.OnPanel,
                     align = TextAlign.End, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -229,8 +247,14 @@ fun TallyApp() {
         }
 
         SectionHeader("CONTROL")
-        FieldToggleRow("ADVANCED PANEL", "scientific function keys", sci) { sci = !sci }
-        FieldToggleRow("RAD MODE", "trig input in radians", rad) { rad = !rad }
+        FieldToggleRow("ADVANCED PANEL", "scientific function keys", sci) {
+            sci = !sci
+            prefs.edit().putBoolean("sci", sci).apply()
+        }
+        FieldToggleRow("RAD MODE", "trig input in radians", rad) {
+            rad = !rad
+            prefs.edit().putBoolean("rad", rad).apply()
+        }
 
         if (sci) {
             SectionHeader("FUNCTIONS")
@@ -266,7 +290,7 @@ fun TallyApp() {
             }
         }
         if (log.isEmpty()) {
-            EmptyCard("NO ENTRIES", "RUN = TO LOG AN ENTRY. TAP A ROW TO RECALL.")
+            EmptyCard("NO ENTRIES", "RUN = TO LOG AN ENTRY. TAP A ROW TO RECALL. TAP THE REGISTER TO COPY ITS VALUE.")
         } else {
             log.forEachIndexed { i, (e, r) ->
                 FieldRow(index = i + 1, selected = false, onClick = { recall(r) }, trailing = "= $r") {
@@ -284,7 +308,7 @@ private fun PanelTitle(led: LedMode, state: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             BlinkingLed(led)
-            FieldText("REGISTER", 16.sp, color = FieldColors.Paper)
+            FieldText("REGISTER", 16.sp, color = FieldColors.OnPanel)
         }
         FieldText(state, 10.sp, color = FieldColors.Dim, tracking = 1.sp)
     }

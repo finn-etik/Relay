@@ -77,4 +77,31 @@ class CalLogicTest {
         assertEquals(null to "25:00 PARTY", CalLogic.parseQuickAdd("25:00 PARTY"))
         assertEquals(null to "2026", CalLogic.parseQuickAdd("2026"))
     }
+
+    @Test fun quickAddRanges() {
+        assertEquals(CalLogic.QuickAdd(870, 90, "WORKSHOP"), CalLogic.parseQuick("14:30-16:00 WORKSHOP"))
+        assertEquals(CalLogic.QuickAdd(540, 60, "RUN"), CalLogic.parseQuick("9 RUN"))
+        assertEquals(CalLogic.QuickAdd(540, 480, "OFFICE"), CalLogic.parseQuick("9-5 OFFICE"))        // 17:00
+        assertEquals(CalLogic.QuickAdd(1320, 480, "SHIFT"), CalLogic.parseQuick("22 - 6 SHIFT"))     // next day
+        assertEquals(CalLogic.QuickAdd(600, 120, "LUNCH"), CalLogic.parseQuick("10.00\u201312.00 LUNCH"))
+        assertEquals(CalLogic.QuickAdd(null, 60, "2026-11 PLAN"), CalLogic.parseQuick("2026-11 PLAN"))
+        assertEquals(CalLogic.QuickAdd(null, 60, "9-25 X"), CalLogic.parseQuick("9-25 X"))
+    }
+
+    @Test fun allDaySpanKeepsItsLength() {
+        val day = 86_400_000L
+        assertEquals(LocalDate.of(1970, 1, 3) to 3, CalLogic.allDaySpan(2 * day, 5 * day))
+        assertEquals(LocalDate.of(1970, 1, 1) to 1, CalLogic.allDaySpan(0, 0))
+    }
+
+    @Test fun allDayStatusFollowsTheLocalDayAndNeverBlinks() {
+        val day = 86_400_000L
+        val zone = ZoneId.of("Europe/Stockholm")
+        fun allDay(date: LocalDate) = Entry(1, date.toEpochDay() * day, (date.toEpochDay() + 1) * day, "X", "", date, 0, 1440, true, 1, "", false, true)
+        val today = LocalDate.of(2026, 11, 22)
+        val halfPastMidnight = today.atStartOfDay(zone).toInstant().toEpochMilli() + 30 * 60_000L // still "yesterday" in UTC
+        assertEquals(EntryStatus.UPCOMING, CalLogic.status(allDay(today), halfPastMidnight, zone))
+        assertEquals(EntryStatus.PAST, CalLogic.status(allDay(today.minusDays(1)), halfPastMidnight, zone))
+        assertEquals(EntryStatus.UPCOMING, CalLogic.status(allDay(today.plusDays(1)), halfPastMidnight, zone))
+    }
 }

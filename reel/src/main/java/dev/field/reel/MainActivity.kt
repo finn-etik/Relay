@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,19 +50,22 @@ import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
 import dev.field.ui.FieldText
-import dev.field.ui.FieldTheme
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
 import dev.field.ui.LedMode
+import dev.field.ui.LocalAccent
 import dev.field.ui.PaperCard
 import dev.field.ui.RegisterPanel
 import dev.field.ui.SectionHeader
 import dev.field.ui.SkinLine
 import dev.field.ui.StatusHeader
-import dev.field.ui.fieldEdgeToEdge
+import dev.field.ui.fieldContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * REEL: voice recorder in the Field Design Language. Skin: signal red.
@@ -74,8 +77,7 @@ class MainActivity : ComponentActivity() {
         ReelStore.load(applicationContext)
         Transcriber.init(applicationContext)
         ParakeetModel.refresh(applicationContext)
-        fieldEdgeToEdge()
-        setContent { FieldTheme(FieldColors.SignalRed) { ReelApp() } }
+        fieldContent(FieldColors.SignalRed, FieldColors.SignalRedOnDark) { ReelApp() }
     }
 }
 
@@ -108,6 +110,17 @@ fun ReelApp() {
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var confirmDel by remember { mutableStateOf(false) }
+    var playPos by remember { mutableLongStateOf(0L) }
+    val stamp = remember { SimpleDateFormat("dd MMM HH:mm", Locale.ROOT) }
+
+    // Playback position for the readout, read from the player while it runs.
+    LaunchedEffect(playingId) {
+        while (playingId != -1) {
+            playPos = try { player?.currentPosition?.toLong() ?: 0L } catch (_: Exception) { 0L }
+            delay(200)
+        }
+        playPos = 0L
+    }
 
     fun flash(text: String) {
         notice = text
@@ -228,17 +241,18 @@ fun ReelApp() {
         phase == RecPhase.REC && rec.live -> "REC / LIVE TXT / SEG " + Fmt.pad3(asr.segments)
         phase == RecPhase.REC -> "REC / INPUT LIVE"
         phase == RecPhase.HOLD -> "HELD / CLOCK STOPPED"
-        playing -> "PLAYBACK / TAKE " + Fmt.pad3(selNo)
+        playing -> "PLAYBACK / TAKE " + Fmt.pad3(selNo) + " / OF " + Fmt.clock(selTake?.durationMs ?: 0L)
         asr.busyTakeId != 0 && asr.progress >= 0 -> "TRANSCRIBING " + (asr.progress * 100).toInt() + "%"
         takes.isNotEmpty() -> "SELECT A TAKE / PLAY TO AUDITION"
         else -> "NO TAKES / PRESS REC"
     }
     val big = when {
         recording -> Fmt.clock(rec.recordedMs)
+        playing -> Fmt.clock(playPos)
         selTake != null -> Fmt.clock(selTake.durationMs)
         else -> "00:00:00"
     }
-    val red = FieldColors.SignalRed
+    val red = LocalAccent.current
     val modelReady = model is ParakeetModel.Status.Ready
     val engine = when {
         !liveTxt -> "OFF"
@@ -253,7 +267,7 @@ fun ReelApp() {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     BlinkingLed(led)
-                    FieldText(if (recording) "TAKE " + Fmt.pad3(rec.takeId) else "TAPE", 16.sp, color = FieldColors.Paper)
+                    FieldText(if (recording) "TAKE " + Fmt.pad3(rec.takeId) else "TAPE", 16.sp, color = FieldColors.OnPanel)
                 }
                 FieldText(
                     when {
@@ -267,7 +281,7 @@ fun ReelApp() {
             }
             Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 FieldText(dimLine, 10.sp, Modifier.fillMaxWidth(), color = if (error != null) red else FieldColors.Dim, tracking = 1.sp, align = TextAlign.End, maxLines = 2)
-                FieldText(big, 22.sp, Modifier.fillMaxWidth().padding(top = 4.dp), weight = FontWeight.Black, color = if (error != null) red else FieldColors.Paper, align = TextAlign.End)
+                FieldText(big, 22.sp, Modifier.fillMaxWidth().padding(top = 4.dp), weight = FontWeight.Black, color = if (error != null) red else FieldColors.OnPanel, align = TextAlign.End)
                 if (phase == RecPhase.REC) LevelMeter(rec.level)
             }
             FieldText(
@@ -281,7 +295,7 @@ fun ReelApp() {
             FieldKey(if (phase == RecPhase.REC) "HOLD" else if (phase == RecPhase.HOLD) "RESUME" else "REC", { recKey() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Accent, enabled = !playing)
             FieldKey("PLAY", { play() }, Modifier.weight(1f), size = 12.sp, enabled = !recording && takes.isNotEmpty())
             FieldKey("STOP", { stop() }, Modifier.weight(1f), size = 12.sp)
-            FieldKey(if (confirmDel) "SURE?" else "DEL", { delete() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Ink, enabled = selTake != null && !recording)
+            FieldKey(if (confirmDel) "SURE?" else "DEL", { delete() }, Modifier.weight(1f), size = 12.sp, variant = KeyVariant.Ink, enabled = selTake != null && !recording && asr.busyTakeId != selTake.id)
         }
 
         SectionHeader("CONTROL")
@@ -308,7 +322,10 @@ fun ReelApp() {
                     onClick = { selId = take.id; confirmDel = false },
                     trailing = Fmt.clock(take.durationMs) + " / " + Fmt.kilobytes(take.sizeBytes) + if (take.transcript.isNotEmpty()) " / TXT" else "",
                 ) {
-                    FieldText("TAKE " + Fmt.pad3(take.id), 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    FieldText(
+                        "TAKE " + Fmt.pad3(take.id) + " / " + stamp.format(Date(take.createdAt)).uppercase(Locale.ROOT),
+                        12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
@@ -317,7 +334,7 @@ fun ReelApp() {
             val busy = asr.busyTakeId == selTake.id
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SectionHeader("TRANSCRIPT", Modifier.weight(1f))
-                FieldKey(if (busy) "···" else "TXT", { if (modelReady) Transcriber.transcribeTake(selTake) else flash("DOWNLOAD THE MODEL FIRST") }, Modifier.width(56.dp), height = 26.dp, size = 10.sp, enabled = !busy && !(recording && rec.takeId == selTake.id))
+                FieldKey(if (busy) "···" else "TXT", { if (modelReady) Transcriber.transcribeTake(selTake) else flash("DOWNLOAD THE MODEL FIRST") }, Modifier.width(56.dp), height = 26.dp, size = 10.sp, enabled = !busy && !recording)
                 if (selTake.transcript.isNotEmpty()) {
                     FieldKey(notice?.takeIf { it == "COPIED" } ?: "CPY", {
                         val cm = context.getSystemService(ClipboardManager::class.java)
@@ -329,7 +346,7 @@ fun ReelApp() {
             }
             if (selTake.transcript.isNotEmpty()) {
                 RegisterPanel {
-                    FieldText(selTake.transcript, 11.sp, Modifier.fillMaxWidth(), weight = FontWeight.Normal, color = FieldColors.Paper, lineHeight = 16.sp)
+                    FieldText(selTake.transcript, 11.sp, Modifier.fillMaxWidth(), weight = FontWeight.Normal, color = FieldColors.OnPanel, lineHeight = 16.sp)
                 }
             } else {
                 PaperCard {
@@ -357,7 +374,7 @@ private fun LevelMeter(level: Float) {
     val lit = (level * 24).toInt().coerceIn(0, 24)
     Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for (i in 0 until 24) {
-            Box(Modifier.weight(1f).fillMaxHeight().background(if (i < lit) FieldColors.SignalRed else FieldColors.Paper.copy(alpha = 0.15f)))
+            Box(Modifier.weight(1f).fillMaxHeight().background(if (i < lit) LocalAccent.current else FieldColors.OnPanel.copy(alpha = 0.15f)))
         }
     }
 }
@@ -386,7 +403,7 @@ private fun ModelCard(
                         ParakeetModel.Status.Ready -> "READY / OFFLINE / 25 LANGUAGES"
                         is ParakeetModel.Status.Failed -> "ERR / " + status.reason
                     },
-                    9.sp, color = if (status is ParakeetModel.Status.Failed) FieldColors.SignalRed else FieldColors.Dim,
+                    9.sp, color = if (status is ParakeetModel.Status.Failed) LocalAccent.current else FieldColors.Dim,
                 )
             }
         }
@@ -395,7 +412,7 @@ private fun ModelCard(
         if (status is ParakeetModel.Status.Downloading && status.total > 0) {
             val lit = (status.done * 24 / status.total).toInt().coerceIn(0, 24)
             Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                for (i in 0 until 24) Box(Modifier.weight(1f).fillMaxHeight().background(if (i < lit) FieldColors.SignalRed else FieldColors.Grid))
+                for (i in 0 until 24) Box(Modifier.weight(1f).fillMaxHeight().background(if (i < lit) LocalAccent.current else FieldColors.Grid))
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

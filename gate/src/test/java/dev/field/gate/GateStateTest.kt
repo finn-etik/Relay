@@ -54,4 +54,21 @@ class GateStateTest {
         assertEquals(25, on.selectPreset(5).presetMin)
         assertEquals(5, GateState().selectPreset(5).presetMin)
     }
+
+    @Test fun presetAdjustsWithinLimits() {
+        assertEquals(27, GateState(presetMin = 25).adjustPreset(1).adjustPreset(1).presetMin)
+        assertEquals(1, GateState(presetMin = 5).adjustPreset(-5).adjustPreset(-5).presetMin)
+        assertEquals(180, GateState(presetMin = 178).adjustPreset(5).presetMin)
+        assertEquals(25, GateState(presetMin = 25).start(0).adjustPreset(5).presetMin) // locked while running
+    }
+
+    @Test fun minutesAreSummedPerDay() {
+        val day = 24 * 60 * min
+        var s = GateState(presetMin = 25).start(0).complete(25 * min).stop()            // day 0
+        s = s.selectPreset(10).start(day).complete(day + 10 * min).stop()               // day 1
+        s = s.selectPreset(50).start(day + 60 * min).complete(day + 110 * min).stop()   // day 1
+        assertEquals(25, s.minutesBetween(0, day))
+        assertEquals(60, s.minutesBetween(day, 2 * day))
+        assertEquals(0, s.minutesBetween(2 * day, 3 * day))
+    }
 }

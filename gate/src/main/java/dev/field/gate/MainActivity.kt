@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,18 +34,20 @@ import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
 import dev.field.ui.FieldText
-import dev.field.ui.FieldTheme
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
 import dev.field.ui.LedMode
+import dev.field.ui.LocalAccent
 import dev.field.ui.RegisterPanel
 import dev.field.ui.SectionHeader
 import dev.field.ui.SkinLine
 import dev.field.ui.StatusHeader
-import dev.field.ui.fieldEdgeToEdge
+import dev.field.ui.fieldContent
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
@@ -55,8 +56,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         GateStore.load(applicationContext)
-        fieldEdgeToEdge()
-        setContent { FieldTheme(FieldColors.SignalBlue) { GateApp() } }
+        fieldContent(FieldColors.SignalBlue, FieldColors.SignalBlueOnDark) { GateApp() }
     }
 }
 
@@ -106,8 +106,12 @@ fun GateApp() {
         Phase.DONE -> "SESSION COMPLETE / LOGGED"
         Phase.STANDBY -> "NO ACTIVE SESSION"
     }
-    val blue = FieldColors.SignalBlue
+    val blue = LocalAccent.current
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.ROOT) }
+    val dateFormat = remember { SimpleDateFormat("dd MMM HH:mm", Locale.ROOT) }
+    // `now` ticks while a session runs; otherwise the day is read when the screen is drawn.
+    val dayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val todayMin = state.minutesBetween(dayStart, dayStart + 24 * 60 * 60_000L)
 
     FieldScreen {
         StatusHeader(
@@ -115,14 +119,14 @@ fun GateApp() {
             led = led,
             status = status,
             left = "PRESET ${state.presetMin} MIN",
-            right = "SESSIONS " + Fmt.pad3(state.log.size),
+            right = "TODAY " + Fmt.pad3(todayMin) + " MIN",
         )
 
         RegisterPanel {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     BlinkingLed(led)
-                    FieldText("SESSION", 16.sp, color = FieldColors.Paper)
+                    FieldText("SESSION", 16.sp, color = FieldColors.OnPanel)
                 }
                 FieldText(
                     when (phase) {
@@ -140,7 +144,7 @@ fun GateApp() {
                     Fmt.mmss(state.remainingMs(now)),
                     22.sp, Modifier.fillMaxWidth().padding(top = 4.dp),
                     weight = FontWeight.Black,
-                    color = if (phase == Phase.DONE) blue else FieldColors.Paper,
+                    color = if (phase == Phase.DONE) blue else FieldColors.OnPanel,
                     align = TextAlign.End,
                 )
             }
@@ -159,6 +163,18 @@ fun GateApp() {
                     modifier = Modifier.weight(1f),
                     height = 40.dp,
                     active = state.presetMin == p && phase == Phase.STANDBY,
+                    enabled = phase == Phase.STANDBY,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(-5, -1, 1, 5).forEach { d ->
+                FieldKey(
+                    label = (if (d > 0) "+" else "−") + kotlin.math.abs(d),
+                    onPress = { GateStore.adjustPreset(context, d) },
+                    modifier = Modifier.weight(1f),
+                    height = 40.dp,
+                    size = 12.sp,
                     enabled = phase == Phase.STANDBY,
                 )
             }
@@ -185,7 +201,9 @@ fun GateApp() {
         } else {
             state.log.forEachIndexed { i, entry ->
                 FieldRow(index = i + 1, selected = false, onClick = { GateStore.selectPreset(context, entry.minutes) }, trailing = "DONE") {
-                    FieldText("${entry.minutes} MIN / ENDED ${timeFormat.format(Date(entry.endedAt))}", 12.sp, tracking = 1.sp)
+                    val ended = if (entry.endedAt >= dayStart) timeFormat.format(Date(entry.endedAt))
+                    else dateFormat.format(Date(entry.endedAt)).uppercase(Locale.ROOT)
+                    FieldText("${entry.minutes} MIN / ENDED $ended", 12.sp, tracking = 1.sp)
                 }
             }
         }

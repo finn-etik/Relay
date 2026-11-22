@@ -17,6 +17,8 @@ Relay is a tiny Android app that moves whatever your phone is playing onto a Son
 
 Besides Relay, the repo holds five apps in the same Field Design Language,
 sharing one component library (`field/`). Each app owns one signal colour.
+All five follow the phone's light / dark setting (PAGE can also be pinned
+to either).
 
 | App | What it is | Accent |
 |-----|------------|--------|

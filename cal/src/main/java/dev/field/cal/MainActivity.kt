@@ -13,7 +13,6 @@ import android.provider.CalendarContract
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,7 +45,6 @@ import dev.field.ui.FieldInput
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldScreen
 import dev.field.ui.FieldText
-import dev.field.ui.FieldTheme
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
@@ -56,7 +54,7 @@ import dev.field.ui.RegisterPanel
 import dev.field.ui.SectionHeader
 import dev.field.ui.SkinLine
 import dev.field.ui.StatusHeader
-import dev.field.ui.fieldEdgeToEdge
+import dev.field.ui.fieldContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,11 +76,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fieldEdgeToEdge()
-        setContent {
-            FieldTheme(FieldColors.SignalGreen) {
-                CalApp(granted = granted, onGranted = { granted = hasAccess() })
-            }
+        fieldContent(FieldColors.SignalGreen) {
+            CalApp(granted = granted, onGranted = { granted = hasAccess() })
         }
     }
 
@@ -267,7 +262,7 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     BlinkingLed(if (selected == today) (if (isLive) LedMode.Slow else LedMode.Solid) else LedMode.Off)
-                    FieldText(CalLogic.MONTHS[selected.monthValue - 1] + " " + Fmt.pad2(selected.dayOfMonth), 16.sp, color = FieldColors.Paper)
+                    FieldText(CalLogic.MONTHS[selected.monthValue - 1] + " " + Fmt.pad2(selected.dayOfMonth), 16.sp, color = FieldColors.OnPanel)
                 }
                 FieldText(if (dayEntries.isEmpty()) "NO ENTRIES" else Fmt.pad2(dayEntries.size) + " ENTRIES", 10.sp, color = FieldColors.Dim, tracking = 1.sp)
             }
@@ -318,7 +313,7 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val st = CalLogic.status(e, nowMs)
                     if (st == EntryStatus.LIVE) BlinkingLed(LedMode.Slow, size = 10.dp)
-                    FieldText(e.title.uppercase(), 16.sp, color = FieldColors.Paper, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    FieldText(e.title.uppercase(), 16.sp, color = FieldColors.OnPanel, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 FieldText(
                     CalLogic.stamp(e.date) + (if (e.location.isNotBlank()) " / " + e.location.uppercase() else ""),
@@ -331,7 +326,7 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
                         else -> Fmt.hhmm(e.startMin) + "/" + Fmt.hhmm(e.endMin) + " / " + e.durationMin + "M"
                     },
                     10.sp, Modifier.padding(top = 10.dp),
-                    color = if (CalLogic.status(e, nowMs) == EntryStatus.LIVE) FieldColors.SignalGreen else FieldColors.Paper,
+                    color = if (CalLogic.status(e, nowMs) == EntryStatus.LIVE) FieldColors.SignalGreen else FieldColors.OnPanel,
                     tracking = 1.sp,
                 )
                 FieldText(
@@ -384,9 +379,9 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
         if (editing == null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 val addQuick = {
-                    val (start, title) = CalLogic.parseQuickAdd(quick)
-                    if (title.isNotBlank()) {
-                        val draft = Draft(title, "", selected, start ?: 0, 60, start == null, -1)
+                    val q = CalLogic.parseQuick(quick)
+                    if (q.title.isNotBlank()) {
+                        val draft = Draft(q.title, "", selected, q.startMin ?: 0, q.durationMin, q.startMin == null, -1)
                         quick = ""
                         write("ADDED") { target -> target != null && repo.insert(draft.copy(calendarId = target)) != null }
                     }
@@ -398,7 +393,7 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
                     openEditor(Draft("", "", selected, start, 60, false, defaultTarget() ?: -1), null)
                 }, Modifier.width(52.dp), size = 15.sp)
             }
-            FieldText("TYPE A TIME FIRST FOR A TIMED ENTRY, OR PRESS + FOR THE FULL EDITOR.", 9.sp, color = FieldColors.Dim)
+            FieldText("TYPE A TIME FIRST FOR A TIMED ENTRY (14:30, OR 14:30-16:00 FOR A LENGTH), OR PRESS + FOR THE FULL EDITOR.", 9.sp, color = FieldColors.Dim)
         } else {
             Editor(
                 draft = editing,
@@ -462,7 +457,7 @@ private fun Editor(
             FieldInput(draft.location, { onChange(draft.copy(location = it)) }, "LOCATION", Modifier.fillMaxWidth())
 
             Stepper(CalLogic.stamp(draft.date), listOf("-1D" to -1, "+1D" to 1)) { onChange(draft.copy(date = draft.date.plusDays(it.toLong()))) }
-            FieldToggleRow("ALL DAY", "no start time", draft.allDay) { onChange(draft.copy(allDay = !draft.allDay)) }
+            FieldToggleRow("ALL DAY", if (draft.allDay && draft.days > 1) "spans ${draft.days} days" else "no start time", draft.allDay) { onChange(draft.copy(allDay = !draft.allDay)) }
             if (!draft.allDay) {
                 Stepper("START " + Fmt.hhmm(draft.startMin), listOf("-1H" to -60, "-15" to -15, "+15" to 15, "+1H" to 60)) {
                     onChange(draft.copy(startMin = (draft.startMin + it).coerceIn(0, 1439)))

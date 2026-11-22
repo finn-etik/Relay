@@ -31,6 +31,8 @@ data class Draft(
     val durationMin: Int,
     val allDay: Boolean,
     val calendarId: Long,
+    /** Length of an all-day entry in days, so editing a multi-day one keeps its span. */
+    val days: Int = 1,
 )
 
 /**
@@ -135,11 +137,13 @@ class CalendarRepo(context: Context) {
     fun draftOf(entry: Entry, zone: ZoneId): Draft = Draft(
         title = entry.title.takeIf { it != "(NO TITLE)" } ?: "",
         location = entry.location,
-        date = if (entry.allDay) entry.date else Instant.ofEpochMilli(entry.instanceBegin).atZone(zone).toLocalDate(),
+        // All-day: the event's own first day, not the day it was tapped on.
+        date = if (entry.allDay) CalLogic.allDaySpan(entry.instanceBegin, entry.instanceEnd).first else Instant.ofEpochMilli(entry.instanceBegin).atZone(zone).toLocalDate(),
         startMin = if (entry.allDay) 9 * 60 else Instant.ofEpochMilli(entry.instanceBegin).atZone(zone).let { it.hour * 60 + it.minute },
         durationMin = if (entry.allDay) 60 else ((entry.instanceEnd - entry.instanceBegin) / 60_000L).toInt().coerceAtLeast(5),
         allDay = entry.allDay,
         calendarId = entry.calendarId,
+        days = if (entry.allDay) CalLogic.allDaySpan(entry.instanceBegin, entry.instanceEnd).second else 1,
     )
 
     /**
@@ -173,7 +177,7 @@ class CalendarRepo(context: Context) {
         if (d.allDay) {
             // Android convention: all-day = UTC midnights, end exclusive.
             put(Events.DTSTART, d.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-            put(Events.DTEND, d.date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+            put(Events.DTEND, d.date.plusDays(maxOf(1, d.days).toLong()).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
             put(Events.EVENT_TIMEZONE, "UTC")
             put(Events.ALL_DAY, 1)
         } else {

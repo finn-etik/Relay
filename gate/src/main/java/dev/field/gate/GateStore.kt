@@ -71,6 +71,7 @@ object GateStore {
     fun stop(context: Context) = update(context) { it.stop() }
     fun settle(context: Context) = update(context) { it.settle(System.currentTimeMillis()) }
     fun selectPreset(context: Context, min: Int) = update(context) { it.selectPreset(min) }
+    fun adjustPreset(context: Context, delta: Int) = update(context) { it.adjustPreset(delta) }
     fun toggleBeep(context: Context) = update(context) { it.copy(beep = !it.beep) }
     fun clearLog(context: Context) = update(context) { it.copy(log = emptyList()) }
 

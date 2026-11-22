@@ -1,13 +1,16 @@
 package dev.field.ui
 
+import android.content.res.Configuration
 import android.graphics.Color.TRANSPARENT
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -112,6 +115,10 @@ object FieldColors {
     val SignalBlue = Color(0xFF0062FF)
     val SignalRed = Color(0xFFFF0000)
     val SignalAmber = Color(0xFFFFB000)
+
+    /** Blue and red lifted to stay readable as text on the dark body. */
+    val SignalBlueOnDark = Color(0xFF5C9DFF)
+    val SignalRedOnDark = Color(0xFFFF5A4F)
     /** PAGE: a calm accent for long writing sessions, not a signal. */
     val Sage = Color(0xFF4F7A6B)
 }
@@ -128,6 +135,27 @@ fun FieldTheme(accent: Color, content: @Composable () -> Unit) {
 fun ComponentActivity.fieldEdgeToEdge(dark: Boolean = false) {
     val style = if (dark) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
     enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+}
+
+fun ComponentActivity.applyFieldPalette(dark: Boolean) {
+    FieldColors.palette = if (dark) FieldColors.Dark else FieldColors.Light
+    fieldEdgeToEdge(dark)
+}
+
+/**
+ * setContent for a Field app that follows the system light / dark setting:
+ * palette, system-bar icons and accent ([accentOnDark] where the signal
+ * colour needs lifting to read on the dark body). The palette is set before
+ * the first frame, so a dark start never flashes light.
+ */
+fun ComponentActivity.fieldContent(accent: Color, accentOnDark: Color = accent, content: @Composable () -> Unit) {
+    val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    applyFieldPalette(night)
+    setContent {
+        val dark = isSystemInDarkTheme()
+        LaunchedEffect(dark) { applyFieldPalette(dark) }
+        FieldTheme(if (dark) accentOnDark else accent, content)
+    }
 }
 
 private val KeyShape = RoundedCornerShape(3.dp)
@@ -312,7 +340,7 @@ fun FieldScreen(scroll: Boolean = true, content: @Composable ColumnScope.() -> U
         val base = Modifier.fillMaxSize().let { if (scroll) it.verticalScroll(rememberScrollState()) else it }
         Column(base.padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(
-                Modifier.fillMaxWidth().widthIn(max = 420.dp).let { if (scroll) it else it.weight(1f) },
+                Modifier.widthIn(max = 420.dp).fillMaxWidth().let { if (scroll) it else it.weight(1f) },
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
             )

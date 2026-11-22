@@ -106,3 +106,46 @@ have run under the status bar.
 - Now on the phone's CalendarContract calendars, with recurring events,
   all-day events read in UTC (no off-by-one-day west of UTC), overlap lanes,
   and confirm-to-delete. Recurring and read-only events are not editable here.
+
+# Field apps: dark mode and second review
+
+**Shared (`field/`)**
+- The palette is switchable (`FieldColors.palette`, light and dark) and apps
+  start through `fieldContent(...)`, which follows the system setting and sets
+  palette, system-bar icons and accent before the first frame. Blue and red
+  have lifted variants for text on the dark body.
+- The register card has its own tones (`Panel` / `OnPanel`): ink on the light
+  body, a raised dark card at night instead of an inverted light one.
+- `FieldScreen` promised a column "at most 420 dp wide" but applied
+  `fillMaxWidth()` before `widthIn(max = 420.dp)`, which fixes the width
+  first, so the cap never applied on tablets or in landscape. Order swapped.
+
+**CAL**
+- All-day entries were compared with the clock as UTC instants, so in UTC+1
+  an all-day entry was "LIVE" from 01:00 to 01:00 the next day. They are now
+  judged by calendar day and never blink.
+- Editing a multi-day all-day entry saved it as a single day on whichever
+  day it was tapped. The editor now keeps the first day and the span.
+- Quick add takes a range for the length: `14:30-16:00 WORKSHOP`.
+
+**GATE**
+- Session length can be fine-tuned between the presets (−5 / −1 / +1 / +5,
+  1 to 180 minutes).
+- The header shows today's completed focus minutes; older log rows carry
+  their date.
+
+**REEL**
+- TXT is off during any recording: a file job shares the live session's
+  voice-activity detector and reset it mid-take.
+- DEL is off for a take while it is being transcribed (the file was deleted
+  under the decoder).
+- The readout shows the playback position; take rows show when they were
+  recorded.
+
+**TALLY**
+- An operator typed after an operator replaces it (`5+` then `×` is `5×`);
+  `−` after × ÷ ^ stays a sign. A number takes one decimal point. A line
+  cannot start with × ÷ + ^.
+- `(−8)^0.5` reported RANGE; it is DOMAIN.
+- ADVANCED PANEL and RAD MODE survive a restart. Tap the register to copy
+  its value.
