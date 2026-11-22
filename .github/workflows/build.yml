@@ -72,6 +72,12 @@ jobs:
       # and runs two of the models on this machine's processor through
       # LORE's own code. It needs the network and downloads about 3 GB, so
       # a failure here does not hold up the APKs: read the step's log.
+      # LiteRT-LM's desktop build, which the model test loads, needs Java 21.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: LORE live checks (download sources, a real archive, real models)
         continue-on-error: true
         timeout-minutes: 40
