@@ -61,21 +61,47 @@ import kotlinx.coroutines.delay
  * Field Design Language: shared tokens and components.
  *
  * The core palette is fixed by the spec. Each app owns exactly one signal
- * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber),
- * provided through [FieldTheme] and used only for live / active / urgent.
+ * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber, PAGE
+ * violet), provided through [FieldTheme] and used only for live / active /
+ * urgent.
  */
 
+/** The five surface tones. [FieldColors.Light] is the spec; Dark is its night skin. */
+class FieldPalette(val body: Color, val paper: Color, val ink: Color, val dim: Color, val grid: Color)
+
 object FieldColors {
-    val Body = Color(0xFFDADAD4)
-    val Paper = Color(0xFFF5F5F1)
-    val Ink = Color(0xFF191919)
-    val Dim = Color(0xFF8A8A82)
-    val Grid = Color(0xFFC4C4BC)
+    val Light = FieldPalette(
+        body = Color(0xFFDADAD4),
+        paper = Color(0xFFF5F5F1),
+        ink = Color(0xFF191919),
+        dim = Color(0xFF8A8A82),
+        grid = Color(0xFFC4C4BC),
+    )
+    val Dark = FieldPalette(
+        body = Color(0xFF121211),
+        paper = Color(0xFF1C1C1A),
+        ink = Color(0xFFE6E6DF),
+        dim = Color(0xFF7D7D76),
+        grid = Color(0xFF2C2C29),
+    )
+
+    /**
+     * The active palette. Snapshot state: everything drawn with the tones
+     * below follows a change. Apps that never set it stay on [Light].
+     */
+    var palette by mutableStateOf(Light)
+
+    val Body: Color get() = palette.body
+    val Paper: Color get() = palette.paper
+    val Ink: Color get() = palette.ink
+    val Dim: Color get() = palette.dim
+    val Grid: Color get() = palette.grid
 
     val SignalGreen = Color(0xFF00C853)
     val SignalBlue = Color(0xFF0062FF)
     val SignalRed = Color(0xFFFF0000)
     val SignalAmber = Color(0xFFFFB000)
+    val SignalViolet = Color(0xFF7A3CFF)
 }
 
 /** The current app's signal accent. */
@@ -86,12 +112,10 @@ fun FieldTheme(accent: Color, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalAccent provides accent, content = content)
 }
 
-/** Light body: force dark system-bar icons and draw edge to edge. */
-fun ComponentActivity.fieldEdgeToEdge() {
-    enableEdgeToEdge(
-        statusBarStyle = SystemBarStyle.light(TRANSPARENT, TRANSPARENT),
-        navigationBarStyle = SystemBarStyle.light(TRANSPARENT, TRANSPARENT),
-    )
+/** Draw edge to edge with system-bar icons that stay visible on the body: dark icons on the light body, light on [dark]. */
+fun ComponentActivity.fieldEdgeToEdge(dark: Boolean = false) {
+    val style = if (dark) SystemBarStyle.dark(TRANSPARENT) else SystemBarStyle.light(TRANSPARENT, TRANSPARENT)
+    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
 }
 
 private val KeyShape = RoundedCornerShape(3.dp)

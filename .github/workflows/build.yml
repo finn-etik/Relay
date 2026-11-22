@@ -1,7 +1,7 @@
 name: Build APKs
 
-# Every push to main builds Relay plus the Field apps (CAL, GATE, REEL,
-# TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
+# Every push to main builds Relay plus the Field apps (CAL, GATE, PAGE,
+# REEL, TALLY): Actions tab -> latest run -> Artifacts -> apks. The same APKs are
 # also published to the `apks` branch.
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
         run: |
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/relay.apk
-          for m in cal gate reel tally; do
+          for m in cal gate page reel tally; do
             cp "$m/build/outputs/apk/release/$m-release.apk" "out/$m.apk"
           done
           ls -la out

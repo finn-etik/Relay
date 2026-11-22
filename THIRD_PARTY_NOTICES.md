@@ -20,7 +20,7 @@ public repository and in distributed APKs.
 Copyright for each component remains with its authors (Google LLC / The
 Android Open Source Project, JetBrains s.r.o. and contributors).
 
-## Field apps (CAL, GATE, REEL, TALLY)
+## Field apps (CAL, GATE, PAGE, REEL, TALLY)
 
 The Field apps use the same AndroidX / Compose / Kotlin components as above
 (Apache License 2.0). REEL additionally ships:

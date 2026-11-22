@@ -15,17 +15,18 @@ Relay is a tiny Android app that moves whatever your phone is playing onto a Son
 
 ## Field apps in this repo
 
-Besides Relay, the repo holds four apps in the same Field Design Language,
+Besides Relay, the repo holds five apps in the same Field Design Language,
 sharing one component library (`field/`). Each app owns one signal colour.
 
 | App | What it is | Accent |
 |-----|------------|--------|
 | **CAL** (`cal/`) | Calendar on the phone's real calendars (Google, DAVx5, local). Month grid, week strip, 24 h day timeline with a NOW line and LIVE entries, add / edit / delete, quick add (`14:30 DENTIST`). Creates an on-device "FIELD" calendar if the phone has none. | green |
 | **GATE** (`gate/`) | Focus timer. Presets 5/10/25/50, hold/resume, log. Ends on time with the app closed (exact alarm), lock-screen countdown. | blue |
+| **PAGE** (`page/`) | Focused writing in Markdown. Focus mode (sentence or paragraph), typewriter scrolling, ZEN (keys hidden), light and dark paper. STYLE check marks filler words, adverbs, passive voice and long sentences (English, on-device). Daily word goal with streak, timed sprints. Autosaved local files; import, share, export .md / .html / .txt, PDF through the print dialog. No permissions. | violet |
 | **REEL** (`reel/`) | Voice recorder (AAC .m4a) with on-device transcription by NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected automatically. Live while recording, or afterwards for any take. One-time ~670 MB model download inside the app (Wi-Fi by default), checksum-verified, then fully offline. | red |
 | **TALLY** (`tally/`) | Calculator with scientific panel, DEG/RAD, percent convention, log. | amber |
 
-Every push to `main` builds all five APKs; they appear under the run's
+Every push to `main` builds all six APKs; they appear under the run's
 artifacts and on the `apks` branch. To build locally, run
 `scripts/fetch-sherpa.sh` once first (REEL's speech runtime is not committed).
 
