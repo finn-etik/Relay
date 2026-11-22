@@ -4,8 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Shared Field Design Language components for the CAL, GATE, PAGE, REEL
-// and TALLY apps. Each app supplies its own signal accent via FieldTheme.
+// Shared Field Design Language components for the CAL, DIAL, GATE, PAGE,
+// REEL and TALLY apps. Each app supplies its own signal accent via FieldTheme.
 android {
     namespace = "dev.field.ui"
     compileSdk = 35

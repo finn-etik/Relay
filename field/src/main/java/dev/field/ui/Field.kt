@@ -64,7 +64,7 @@ import kotlinx.coroutines.delay
  * Field Design Language: shared tokens and components.
  *
  * The core palette is fixed by the spec. Each app owns exactly one signal
- * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber; PAGE takes a
+ * accent (Relay orange, CAL green, GATE blue, REEL red, TALLY amber, DIAL violet; PAGE takes a
  * deliberately quiet sage), provided through [FieldTheme] and used only for
  * live / active / urgent.
  */
@@ -115,10 +115,12 @@ object FieldColors {
     val SignalBlue = Color(0xFF0062FF)
     val SignalRed = Color(0xFFFF0000)
     val SignalAmber = Color(0xFFFFB000)
+    val SignalViolet = Color(0xFF6200EA)
 
-    /** Blue and red lifted to stay readable as text on the dark body. */
+    /** Blue, red and violet lifted to stay readable as text on the dark body. */
     val SignalBlueOnDark = Color(0xFF5C9DFF)
     val SignalRedOnDark = Color(0xFFFF5A4F)
+    val SignalVioletOnDark = Color(0xFFB08CFF)
     /** PAGE: a calm accent for long writing sessions, not a signal. */
     val Sage = Color(0xFF4F7A6B)
 }

@@ -20,7 +20,7 @@ public repository and in distributed APKs.
 Copyright for each component remains with its authors (Google LLC / The
 Android Open Source Project, JetBrains s.r.o. and contributors).
 
-## Field apps (CAL, GATE, PAGE, REEL, TALLY)
+## Field apps (CAL, DIAL, GATE, PAGE, REEL, TALLY)
 
 The Field apps use the same AndroidX / Compose / Kotlin components as above
 (Apache License 2.0). REEL additionally ships:
@@ -36,6 +36,15 @@ REEL downloads, at the user's request and not inside the APK:
 | Model | License |
 |-------|---------|
 | NVIDIA Parakeet TDT 0.6B v3, int8 ONNX export by the sherpa-onnx project (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`) | CC-BY-4.0, NVIDIA Corporation. Attribution is shown in REEL's model card. |
+
+DIAL reads, at runtime and not inside the APK:
+
+| Source | Data license | Used for |
+|--------|--------------|----------|
+| [Radio Browser](https://www.radio-browser.info/) API (`*.api.radio-browser.info`) | Public domain (CC0) | Station search: names, stream URLs, metadata |
+
+The streams themselves (e.g. SomaFM, Radio Paradise) belong to their
+broadcasters; DIAL only plays their public stream URLs.
 
 ## Build and test only (not in the APK)
 

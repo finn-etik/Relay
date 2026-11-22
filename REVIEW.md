@@ -149,3 +149,31 @@ have run under the status bar.
 - `(−8)^0.5` reported RANGE; it is DOMAIN.
 - ADVANCED PANEL and RAD MODE survive a restart. Tap the register to copy
   its value.
+
+# DIAL joins the pack (from finn-etik/dial 1.1)
+
+Moved into `dial/` as `dev.field.dial` (was `com.field.dial`), on the shared
+`field/` components instead of its own copies, with the pack's release
+build (R8, optional stable signing), adaptive icon and dark mode. minSdk is
+26 like the rest (was 24).
+
+- The screen drew under the status and navigation bars (targetSdk 35 forces
+  edge-to-edge and the layout had no inset padding). `FieldScreen` handles it.
+- TUNE while one station played and another was selected stopped playback
+  instead of tuning the selected one.
+- The retry counter was reset by the re-tune itself, so "RETRY 01" never
+  counted up, and a dead stream was retried every 3 s forever. Retries now
+  back off (3 s doubling to a minute) and the count is kept.
+- A stream that simply ended (no error) left the clock running on a silent
+  player. It now counts as a drop.
+- Callbacks from a player that had already been replaced could flip the
+  state of the new one. They are ignored.
+- Search: an error status from one mirror was reported as "no streams
+  found" without trying the others; "unreachable" is now told apart from
+  "nothing found". Typed stations are checked for duplicates like search
+  results were.
+- The light/dark switch is handled without recreating the activity, so it
+  does not cut the stream.
+- Not changed: there is no foreground playback service, so Android may stop
+  the stream once the app has been in the background for a while.
+

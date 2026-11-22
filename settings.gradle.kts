@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "Relay"
 include(":app")          // Relay
 include(":field")        // shared Field Design Language UI
-include(":cal", ":gate", ":page", ":reel", ":tally")
+include(":cal", ":dial", ":gate", ":page", ":reel", ":tally")
