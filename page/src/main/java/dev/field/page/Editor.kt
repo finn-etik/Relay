@@ -68,6 +68,7 @@ import dev.field.ui.FieldKey
 import dev.field.ui.FieldText
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
+import dev.field.ui.Kit
 import dev.field.ui.LedMode
 import dev.field.ui.LocalAccent
 import dev.field.ui.PaperCard
@@ -222,6 +223,19 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
         }
     }
 
+    // Kit link: with GATE installed, a sprint is a GATE session (the kit's one
+    // timer). PAGE starts and stops it there and follows its countdown, so a
+    // session begun in GATE, CAL or LIST also counts words here.
+    val gate = remember { Kit.installed(context, Kit.GATE) }
+    LaunchedEffect(gate) {
+        while (gate) {
+            val focus = withContext(Dispatchers.IO) { Kit.focus(context) }
+            val t = System.currentTimeMillis()
+            PageStore.update(context) { it.copy(goals = it.goals.followFocus(t, focus?.remainingMs, focus?.minutes ?: 0)) }
+            delay(1000)
+        }
+    }
+
     BackHandler {
         when {
             zen -> zen = false
@@ -373,13 +387,16 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
 
                     Panel.SPRINT -> PaperCard(Modifier.padding(horizontal = 16.dp)) {
                         if (sprint == null) {
-                            FieldText("TIMED SPRINT / MINUTES", 10.sp, color = dim, tracking = 1.sp)
+                            FieldText(if (gate) "TIMED SPRINT / MINUTES / CLOCK: GATE" else "TIMED SPRINT / MINUTES", 10.sp, color = dim, tracking = 1.sp)
                             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Goals.SPRINTS.forEach { minutes ->
                                     FieldKey(
                                         Fmt.pad2(minutes),
                                         {
-                                            PageStore.update(context) { it.copy(goals = it.goals.startSprint(System.currentTimeMillis(), minutes)) }
+                                            // GATE runs the clock if it is there (PAGE joins within a second); otherwise PAGE's own.
+                                            if (!Kit.startFocus(context, minutes)) {
+                                                PageStore.update(context) { it.copy(goals = it.goals.startSprint(System.currentTimeMillis(), minutes)) }
+                                            }
                                             panel = Panel.NONE
                                         },
                                         Modifier.weight(1f), height = 40.dp, size = 12.sp,
@@ -394,7 +411,10 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
                                 FieldText("SPRINT ${sprint.minutes} MIN / +${sprint.words} W", 12.sp, Modifier.weight(1f), tracking = 1.sp)
                                 FieldKey(
                                     "END",
-                                    { PageStore.update(context) { it.copy(goals = it.goals.cancelSprint()) } },
+                                    {
+                                        if (sprint.external) Kit.stopFocus(context)
+                                        PageStore.update(context) { it.copy(goals = it.goals.cancelSprint()) }
+                                    },
                                     Modifier.width(64.dp), height = 32.dp, size = 10.sp,
                                 )
                             }

@@ -60,6 +60,13 @@ object Text {
     /** True for names PAGE gave a new note ("untitled", "untitled (2)"): those follow the title once there is one. */
     fun isPlaceholderName(name: String): Boolean = placeholder.matches(name.substringBeforeLast('.'))
 
+    /** The text of a note made from shared text: the subject as a heading, unless the text already starts with it. */
+    fun sharedNote(subject: String, text: String): String {
+        val body = text.trim()
+        val head = subject.trim()
+        return if (head.isEmpty() || title(body).equals(head, ignoreCase = true)) body else "# $head\n\n$body"
+    }
+
     // ---- focus ranges ----
 
     /** The line (paragraph) holding [cursor]. */

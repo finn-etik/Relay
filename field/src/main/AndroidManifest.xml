@@ -1,2 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The kit's apps hand work to each other (see Kit.kt). Since Android 11
+         an app must name the packages it wants to reach. Merged into every
+         Field app. -->
+    <queries>
+        <package android:name="dev.field.cal" />
+        <package android:name="dev.field.dial" />
+        <package android:name="dev.field.gate" />
+        <package android:name="dev.field.list" />
+        <package android:name="dev.field.page" />
+        <package android:name="dev.field.reel" />
+        <package android:name="dev.field.tally" />
+    </queries>
+
+</manifest>

@@ -31,6 +31,9 @@ object PageStore {
     val state: StateFlow<PageState> = _state.asStateFlow()
     private var loaded = false
 
+    /** A note that arrived from outside (shared text, a REEL transcript): the screen opens it, then clears this. */
+    val incoming = MutableStateFlow<String?>(null)
+
     @Synchronized
     fun load(context: Context) {
         if (loaded) return
@@ -293,7 +296,7 @@ object PageStore {
                 for (k in j.keys()) k.toLongOrNull()?.let { day -> days[day] = j.optInt(k) }
             }
             val sprint = o.optJSONObject("sprint")?.let {
-                Sprint(it.getInt("minutes"), it.getLong("endAt"), it.optInt("words"))
+                Sprint(it.getInt("minutes"), it.getLong("endAt"), it.optInt("words"), it.optBoolean("external"))
             }
             val log = ArrayList<SprintLog>()
             o.optJSONArray("log")?.let { a ->
@@ -322,7 +325,7 @@ object PageStore {
         for ((day, words) in s.goals.days) days.put(day.toString(), words)
         o.put("days", days)
         s.goals.sprint?.let {
-            o.put("sprint", JSONObject().put("minutes", it.minutes).put("endAt", it.endAt).put("words", it.words))
+            o.put("sprint", JSONObject().put("minutes", it.minutes).put("endAt", it.endAt).put("words", it.words).put("external", it.external))
         }
         val log = JSONArray()
         for (e in s.goals.log) {

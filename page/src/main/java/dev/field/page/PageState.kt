@@ -19,8 +19,12 @@ data class Settings(
     val ext: Ext = Ext.MD,
 )
 
-/** A running timed sprint. [words] is the net count written since it began. */
-data class Sprint(val minutes: Int, val endAt: Long, val words: Int = 0)
+/**
+ * A running timed sprint. [words] is the net count written since it began.
+ * [external] = the clock is a GATE session (the kit's one timer); PAGE only
+ * follows it and counts the words.
+ */
+data class Sprint(val minutes: Int, val endAt: Long, val words: Int = 0, val external: Boolean = false)
 
 data class SprintLog(val minutes: Int, val words: Int, val endedAt: Long)
 
@@ -76,11 +80,38 @@ data class Goals(
 
     fun cancelSprint(): Goals = if (sprint == null) this else copy(sprint = null)
 
+    /**
+     * Keeps the sprint in step with GATE. [focusRemainingMs] is what is left
+     * of GATE's session (running or on hold), or null when GATE has none.
+     *
+     * - GATE has a session and PAGE no sprint: PAGE joins it.
+     * - GATE's end moved (hold, resume): the sprint's end moves with it.
+     * - GATE's session is gone: at its end the sprint is logged, before its
+     *   end (stopped in GATE) it is dropped without a log entry.
+     * A sprint PAGE timed itself (no GATE installed) is never touched.
+     */
+    fun followFocus(now: Long, focusRemainingMs: Long?, focusMinutes: Int): Goals {
+        val s = sprint
+        if (focusRemainingMs != null) {
+            val end = now + focusRemainingMs
+            return when {
+                s == null -> if (focusRemainingMs > FOLLOW_SLACK_MS) copy(sprint = Sprint(focusMinutes, end, external = true)) else this
+                !s.external -> this
+                kotlin.math.abs(s.endAt - end) > FOLLOW_SLACK_MS -> copy(sprint = s.copy(endAt = end, minutes = focusMinutes))
+                else -> this
+            }
+        }
+        if (s == null || !s.external) return this
+        return if (now >= s.endAt - FOLLOW_SLACK_MS) finishSprint(maxOf(now, s.endAt)) else cancelSprint()
+    }
+
     companion object {
         val TARGETS = listOf(0, 250, 500, 1000, 2000)
         val SPRINTS = listOf(5, 10, 15, 25)
         const val KEEP_DAYS = 400
         const val LOG_SIZE = 20
+        /** Two clocks in two apps never agree to the millisecond. */
+        const val FOLLOW_SLACK_MS = 2_000L
     }
 }
 

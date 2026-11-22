@@ -38,6 +38,12 @@ class TextTest {
         }
     }
 
+    @Test fun sharedTextBecomesATitledNote() {
+        assertEquals("# TAKE 003\n\nhello there", Text.sharedNote("TAKE 003", "  hello there "))
+        assertEquals("hello there", Text.sharedNote("", "hello there"))
+        assertEquals("# Plan\nsteps", Text.sharedNote("plan", "# Plan\nsteps")) // already titled
+    }
+
     @Test fun paragraphIsTheCursorLine() {
         val t = "first\nsecond line\nthird"
         assertEquals(Span(0, 5), Text.paragraph(t, 0))

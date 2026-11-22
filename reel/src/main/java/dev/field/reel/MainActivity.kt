@@ -53,6 +53,7 @@ import dev.field.ui.FieldText
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
+import dev.field.ui.Kit
 import dev.field.ui.LedMode
 import dev.field.ui.LocalAccent
 import dev.field.ui.PaperCard
@@ -341,6 +342,13 @@ fun ReelApp() {
                         cm.setPrimaryClip(ClipData.newPlainText("TRANSCRIPT", selTake.transcript))
                         flash("COPIED")
                     }, Modifier.width(72.dp), height = 26.dp, size = 10.sp)
+                }
+                if (selTake.transcript.isNotEmpty()) {
+                    // Kit link: the transcript becomes a new note in PAGE.
+                    FieldKey("PAGE", {
+                        val title = "TAKE " + Fmt.pad3(selTake.id) + " / " + stamp.format(Date(selTake.createdAt)).uppercase(Locale.ROOT)
+                        if (!Kit.sendText(context, Kit.PAGE, title, selTake.transcript)) flash("PAGE IS NOT INSTALLED")
+                    }, Modifier.width(52.dp), height = 26.dp, size = 10.sp)
                 }
                 FieldKey("SHARE", { share(selTake) }, Modifier.width(64.dp), height = 26.dp, size = 10.sp)
             }

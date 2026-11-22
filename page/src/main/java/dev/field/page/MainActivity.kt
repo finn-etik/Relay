@@ -1,5 +1,6 @@
 package dev.field.page
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -69,7 +70,23 @@ class MainActivity : ComponentActivity() {
         // Set the palette before the first frame, so a dark start never flashes light.
         val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         applyPalette(isDark(PageStore.state.value.settings.theme, night))
+        if (savedInstanceState == null) receive(intent) // not again after a rotation
         setContent { PageApp(this) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receive(intent)
+    }
+
+    /** Shared text becomes a new note, titled with the share's subject if it has one. */
+    private fun receive(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+        if (text.isEmpty()) return
+        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)?.trim().orEmpty()
+        PageStore.flush(applicationContext) // whatever is open is saved before the new note takes its place
+        PageStore.incoming.value = PageStore.create(applicationContext, Text.sharedNote(subject, text))
     }
 
     /** Leaving the app for any reason writes what the editor has staged. */
@@ -97,6 +114,13 @@ fun PageApp(activity: MainActivity) {
     LaunchedEffect(dark) { activity.applyPalette(dark) }
 
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    val incoming by PageStore.incoming.collectAsState()
+    LaunchedEffect(incoming) {
+        if (incoming != null) {
+            open = incoming
+            PageStore.incoming.value = null
+        }
+    }
     FieldTheme(if (dark) SageOnDark else FieldColors.Sage) {
         val id = open
         if (id == null) Library(state, onOpen = { open = it })

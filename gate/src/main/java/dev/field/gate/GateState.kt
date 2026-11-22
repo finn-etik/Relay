@@ -45,6 +45,15 @@ data class GateState(
         Phase.STANDBY, Phase.DONE -> copy(phase = Phase.ON, endAt = now + presetMs, doneAt = 0L)
     }
 
+    /**
+     * A session asked for by another app (CAL, LIST, PAGE): [minutes] long,
+     * starting now. A session already running or on hold is left alone: the
+     * other app joins it instead of restarting the clock.
+     */
+    fun begin(now: Long, minutes: Int): GateState =
+        if (phase == Phase.ON || phase == Phase.HOLD) this
+        else stop().selectPreset(minutes.coerceIn(MIN_PRESET, MAX_PRESET)).start(now)
+
     fun hold(now: Long): GateState =
         if (phase != Phase.ON) this
         else copy(phase = Phase.HOLD, heldRemainingMs = remainingMs(now), endAt = 0L)

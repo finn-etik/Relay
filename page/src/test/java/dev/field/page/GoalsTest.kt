@@ -53,4 +53,31 @@ class GoalsTest {
         assertNull(g.sprint)
         assertEquals(emptyList<SprintLog>(), g.log)
     }
+
+    @Test fun sprintJoinsAGateSessionAndIsLoggedAtItsEnd() {
+        var g = Goals().followFocus(now = 0, focusRemainingMs = 25 * min, focusMinutes = 25)
+        assertEquals(Sprint(25, 25 * min, 0, external = true), g.sprint)
+        assertSame(g, g.followFocus(1000, 25 * min - 1000, 25))   // same end: nothing to do
+        g = g.record(1, 300, 10 * min)
+        val done = g.followFocus(25 * min + 500, null, 0)          // GATE finished
+        assertNull(done.sprint)
+        assertEquals(listOf(SprintLog(25, 300, 25 * min)), done.log)
+    }
+
+    @Test fun sprintFollowsHoldAndAnEarlyStop() {
+        var g = Goals().followFocus(0, 10 * min, 10)
+        // GATE on hold for a minute: 9 min still left at t = 2 min, so the end moved to 11 min.
+        g = g.followFocus(2 * min, 9 * min, 10)
+        assertEquals(11 * min, g.sprint!!.endAt)
+        val stopped = g.followFocus(3 * min, null, 0)              // stopped in GATE well before the end
+        assertNull(stopped.sprint)
+        assertEquals(emptyList<SprintLog>(), stopped.log)
+    }
+
+    @Test fun aSprintTimedByPageItselfIsNotTouchedByGate() {
+        val own = Goals().startSprint(0, 10)
+        assertSame(own, own.followFocus(1 * min, null, 0))
+        assertSame(own, own.followFocus(1 * min, 25 * min, 25))
+        assertSame(Goals().sprint, Goals().followFocus(0, 500, 25).sprint) // a session about to end is not joined
+    }
 }

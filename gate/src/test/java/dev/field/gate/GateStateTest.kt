@@ -71,4 +71,19 @@ class GateStateTest {
         assertEquals(60, s.minutesBetween(day, 2 * day))
         assertEquals(0, s.minutesBetween(2 * day, 3 * day))
     }
+
+    @Test fun anotherAppCanBeginASessionButNotRestartOne() {
+        val s = GateState(presetMin = 25).begin(0, 45)
+        assertEquals(Phase.ON, s.phase)
+        assertEquals(45, s.presetMin)
+        assertEquals(45 * min, s.remainingMs(0))
+        assertEquals(s, s.begin(10 * min, 5))                       // running: joined, not restarted
+        val held = s.hold(10 * min)
+        assertEquals(held, held.begin(11 * min, 5))                 // on hold: left alone
+        assertEquals(180, GateState().begin(0, 999).presetMin)      // clamped to GATE's limits
+        assertEquals(1, GateState().begin(0, 0).presetMin)
+        val again = s.complete(45 * min).begin(50 * min, 10)        // DONE: a new one may start
+        assertEquals(Phase.ON, again.phase)
+        assertEquals(10, again.presetMin)
+    }
 }

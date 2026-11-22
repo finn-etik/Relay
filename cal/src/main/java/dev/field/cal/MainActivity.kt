@@ -48,6 +48,7 @@ import dev.field.ui.FieldText
 import dev.field.ui.FieldToggleRow
 import dev.field.ui.Fmt
 import dev.field.ui.KeyVariant
+import dev.field.ui.Kit
 import dev.field.ui.LedMode
 import dev.field.ui.PaperCard
 import dev.field.ui.RegisterPanel
@@ -351,6 +352,15 @@ private fun CalApp(granted: Boolean, onGranted: () -> Unit) {
                         }
                     }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Ink, enabled = editable)
                     FieldKey("CLOSE", { selectedKey = null }, Modifier.weight(1f), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent)
+                }
+                // Kit link: a GATE focus session as long as the entry (GATE's limit is 3 hours).
+                if (!e.allDay) {
+                    val minutes = e.durationMin.coerceIn(1, Kit.MAX_FOCUS_MINUTES)
+                    FieldKey(
+                        "FOCUS $minutes MIN IN GATE",
+                        { flash(if (Kit.startFocus(context, minutes)) "GATE: $minutes MIN SESSION STARTED" else "GATE IS NOT INSTALLED") },
+                        Modifier.fillMaxWidth().padding(top = 8.dp), height = 40.dp, size = 12.sp,
+                    )
                 }
             }
         }

@@ -30,6 +30,17 @@
             android:name=".GateReceiver"
             android:exported="false" />
 
+        <!-- Kit links (dev.field.ui.Kit): other kit apps start / stop a session
+             and read its countdown. Open on purpose; see GateLink.kt. -->
+        <receiver
+            android:name=".GateLinkReceiver"
+            android:exported="true" />
+
+        <provider
+            android:name=".GateSessionProvider"
+            android:authorities="dev.field.gate.session"
+            android:exported="true" />
+
         <receiver
             android:name=".GateBootReceiver"
             android:exported="true">
