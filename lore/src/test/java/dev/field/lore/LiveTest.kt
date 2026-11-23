@@ -54,7 +54,7 @@ class LiveTest {
         val listings = HashMap<String, String>()
         // For choosing packs: every English Wikipedia edition Kiwix lists, newest of each.
         val all = open(Catalog.KIWIX + "wikipedia/").inputStream.use { String(it.readBytes()) }
-        val editions = Regex("href=\"(wikipedia_en_[a-z0-9_-]+?_)\\d{4}-\\d{2}\\.zim\"").findAll(all).map { it.groupValues[1] }.distinct()
+        val editions = Regex("href=\"(wikipedia_(?:en_top|en_all|en_100|simple)[a-z0-9_-]*?_)\\d{4}-\\d{2}\\.zim\"").findAll(all).map { it.groupValues[1] }.distinct()
         for (prefix in editions) Packs.latest(all, Pack("", "", "", "wikipedia", prefix))?.let { note("listed ${it.file} ${it.size}") }
 
         for (pack in Catalog.PACKS) {

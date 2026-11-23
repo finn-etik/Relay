@@ -121,6 +121,13 @@ out so far because turning them on needs one pass to fix what they find.
 **RELAY**
 - Dark mode (comes with item 8 above).
 
+**All apps**
+- Move the text fields to Compose's state-based `BasicTextField`: the
+  value-based one (used by `FieldInput` and PAGE's editor, with its
+  `VisualTransformation`) is deprecated since Compose 1.13. It still
+  works; the change touches PAGE's editor deeply and wants a phone to
+  test on.
+
 **LORE**
 - Speak the question: REEL's speech recognition as an input key.
 - Search by meaning as well as by words (a small embedding model) for
