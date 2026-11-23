@@ -57,6 +57,9 @@ class LiveTest {
         val editions = Regex("href=\"(wikipedia_(?:en_top|en_all|en_100|simple)[a-z0-9_-]*?_)\\d{4}-\\d{2}\\.zim\"").findAll(all).map { it.groupValues[1] }.distinct()
         for (prefix in editions) Packs.latest(all, Pack("", "", "", "wikipedia", prefix))?.let { note("listed ${it.file} ${it.size}") }
 
+        note("simple: " + Regex("href=\"([^\"]*simple[^\"]*\\.zim)\"").findAll(all).map { it.groupValues[1] }.toList().takeLast(12))
+        note("listing: ${all.length} chars, ${Regex("href=").findAll(all).count()} links")
+
         for (pack in Catalog.PACKS) {
             val listing = listings.getOrPut(pack.listing) { open(pack.listing).inputStream.use { String(it.readBytes()) } }
             val remote = Packs.latest(listing, pack)
