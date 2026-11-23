@@ -22,18 +22,44 @@ data class NoteChunk(val file: String, val ref: String, val passage: Passage)
 class NotesIndex(val chunks: List<NoteChunk>) {
     private val index = Bm25(chunks.map { Words.tokens("${it.file} ${it.passage.heading} ${it.passage.text}") })
 
+    /** How many notes (files) the passages come from. */
+    val files: Int = chunks.map { it.ref }.distinct().size
+
     /**
      * The passages that answer [question] best. A passage must contain at
      * least half of the question's meaningful words, and score at least
      * half as well as the best one: an unrelated note is worse than none.
+     * The word "notes" itself is not searched for ("my notes on bread"
+     * is about bread).
      */
     fun search(question: String, limit: Int): List<NoteChunk> {
-        val terms = Words.terms(question)
+        val terms = Words.terms(question) - "note"
         if (terms.isEmpty()) return emptyList()
         val need = (terms.size + 1) / 2
         val hits = index.search(terms, limit * 4).filter { it.matched >= need }
         val best = hits.firstOrNull()?.score ?: return emptyList()
         return hits.filter { it.score >= best / 2 }.take(limit).map { chunks[it.doc] }
+    }
+
+    /**
+     * A table of contents of the folder: every note with its headings, or
+     * failing those its first words. This is what answers "what are my
+     * notes about?", which no single passage does.
+     */
+    fun overview(budget: Int): Source? {
+        if (chunks.isEmpty()) return null
+        val out = StringBuilder("The notes folder holds $files notes:")
+        for ((_, passages) in chunks.groupBy { it.ref }) {
+            val headings = passages.map { it.passage.heading }.filter { it.isNotEmpty() }.distinct()
+            val about = if (headings.isNotEmpty()) headings.take(4).joinToString("; ") else passages.first().passage.text.take(80)
+            val line = "\n- ${passages.first().file}: $about"
+            if (out.length + line.length > budget) {
+                out.append("\n- (and more)")
+                break
+            }
+            out.append(line)
+        }
+        return Source(Origin.NOTE, "Your notes", "Overview", out.toString(), "")
     }
 }
 
@@ -137,8 +163,21 @@ object Ask {
         return fill(order.map { Source(Origin.PACK, it.article.title, it.passage.heading, it.passage.text, it.article.ref) }, budget).take(MAX_QUOTES)
     }
 
-    fun fromNotes(question: String, notes: NotesIndex, budget: Int, limit: Int = 3): List<Source> =
-        fill(notes.search(question, limit).map { Source(Origin.NOTE, it.file, it.passage.heading, it.passage.text, it.ref) }, budget)
+    private val ABOUT_NOTES = Regex("\\b(my|the|which|what|any|these|those|all)\\s+(notes?|files?|folder)\\b|\\bnotes\\b|\\b(have i|did i|i have|i)\\s+(written|wrote|noted|jotted)\\b", RegexOption.IGNORE_CASE)
+
+    /** Whether the question is about the notes as such ("what are my notes about", "did I write about X"). */
+    fun asksAboutNotes(question: String): Boolean = ABOUT_NOTES.containsMatchIn(question)
+
+    /**
+     * What to quote from the notes: the passages that match, and, when the
+     * question is about the notes themselves, the folder's table of
+     * contents first.
+     */
+    fun fromNotes(question: String, notes: NotesIndex, budget: Int, limit: Int = 3): List<Source> {
+        val overview = if (asksAboutNotes(question)) notes.overview(budget / 2) else null
+        val hits = notes.search(question, limit).map { Source(Origin.NOTE, it.file, it.passage.heading, it.passage.text, it.ref) }
+        return fill(listOfNotNull(overview) + hits, budget)
+    }
 
     /** Takes sources in order until [budget] characters are used; the last one may be cut short. */
     private fun fill(sources: List<Source>, budget: Int): List<Source> {
@@ -156,9 +195,11 @@ object Ask {
     /**
      * The standing instruction. Citing is only mentioned when there is
      * something to cite: told about sources it does not have, a model
-     * decorates plain answers with an invented "[1]".
+     * decorates plain answers with an invented "[1]". [notes] is how many
+     * notes are connected (0 = none, or switched off): without it the model
+     * tells the user it "has no access" to notes that merely did not match.
      */
-    fun system(today: String, sourced: Boolean): String =
+    fun system(today: String, sourced: Boolean, notes: Int = 0): String =
         "You are LORE, an assistant running on the user's phone without internet. Answer briefly and plainly. " +
             (
                 if (sourced) {
@@ -168,6 +209,11 @@ object Ask {
                 } else {
                     "You have no sources for this message: answer from memory, do not cite anything, and say so when you are not sure. "
                 }
+                ) +
+            (
+                if (notes > 0 && sourced) "Sources marked (my notes) are passages from the user's own notes folder, which you can search. "
+                else if (notes > 0) "The user's notes folder ($notes notes) was searched and nothing in it matched this message; if they ask about their notes, say that, and suggest naming what the note is about. "
+                else ""
                 ) +
             "Today is $today."
 

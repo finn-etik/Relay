@@ -404,3 +404,33 @@ Verified in CI (`LiveTest`, `ModelLiveTest`, run against the real services):
 Not verified: anything on a phone. The Android build of the runtime, the
 GPU path, speed and memory use on a phone, the download flow, the folder
 picker and every screen are untested.
+
+## After the first run on a phone (2026-11-23)
+
+LORE ran: Gemma 4 E2B loaded on the GPU and answered. Two findings.
+
+- **"What are my notes about?" got "I do not have access to your notes."**
+  The folder was not the problem. The search looks for the question's
+  words in the notes, and this question has none worth searching for, so
+  nothing was quoted and the model, knowing nothing of a notes folder,
+  said so. Now: a question about the notes as such gets the folder's
+  table of contents as a source; the word "notes" is not itself searched
+  for; the model is told when a connected folder was searched in vain; and
+  the NOTES key shows how many notes were read, so a folder that really
+  is empty or unreadable shows as such.
+- **Packs were too large to try.** The catalogue now starts with two
+  small ones (the openings of the most-read articles; Simple English
+  Wikipedia) and is ordered by size.
+
+## Toolchain refresh (2026-11-23)
+
+Gradle 8.11.1 to 9.5.0, Android Gradle plugin 8.7.3 to 9.3.1 (Kotlin
+support is now built into it), Kotlin 2.4.21, Compose BOM 2026.11.01
+(Compose 1.13), Activity 1.13.0, Core 1.19.0, Lifecycle 2.11.0, Media3
+1.11.1; compileSdk 37.1, targetSdk 36. The newest Android Gradle plugin
+(9.4) was not taken: Kotlin 2.4.21 is tested up to 9.3.1.
+
+This is two years of library changes at once, checked by the unit tests
+and the release build only. Every app should be opened once on a phone;
+DIAL (Media3 1.4 to 1.11) and anything with a keyboard or a sheet
+(Compose 1.7 to 1.13) are the places to look first.

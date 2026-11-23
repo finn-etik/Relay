@@ -187,7 +187,13 @@ private fun ChatScreen(state: State, onLibrary: () -> Unit) {
         if (state.notesFolder.isNotEmpty() || state.shelf.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.notesFolder.isNotEmpty()) {
-                    FieldKey(if (state.useNotes) "NOTES ON" else "NOTES OFF", { LoreStore.setUseNotes(!state.useNotes) }, Modifier.weight(1f), height = 34.dp, size = 10.sp, active = state.useNotes)
+                    // The count is the proof that the folder was read: "0" means nothing in it could be used.
+                    val found = when {
+                        state.notesNote.isNotEmpty() -> "UNREADABLE"
+                        state.indexing && state.notesFiles == 0 -> "READING"
+                        else -> "${state.notesFiles}"
+                    }
+                    FieldKey(if (state.useNotes) "NOTES ON · $found" else "NOTES OFF", { LoreStore.setUseNotes(!state.useNotes) }, Modifier.weight(1f), height = 34.dp, size = 10.sp, active = state.useNotes)
                 }
                 if (state.shelf.isNotEmpty()) {
                     FieldKey(if (state.usePacks) "PACKS ON" else "PACKS OFF", { LoreStore.setUsePacks(!state.usePacks) }, Modifier.weight(1f), height = 34.dp, size = 10.sp, active = state.usePacks)
@@ -387,7 +393,9 @@ private fun ColumnScope.SourceSheet(source: Source) {
     SheetLabel(if (source.origin == Origin.NOTE) "FROM YOUR NOTES" else "FROM A PACK")
     FieldText(source.label, 14.sp, Modifier.padding(top = 6.dp), color = FieldColors.OnPanel, maxLines = 3, overflow = TextOverflow.Ellipsis)
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FieldKey(if (source.origin == Origin.NOTE) "WHOLE NOTE" else "WHOLE ARTICLE", { LoreStore.read(source) }, Modifier.weight(1f), height = 40.dp, size = 11.sp, variant = KeyVariant.Accent)
+        if (source.ref.isNotEmpty()) {
+            FieldKey(if (source.origin == Origin.NOTE) "WHOLE NOTE" else "WHOLE ARTICLE", { LoreStore.read(source) }, Modifier.weight(1f), height = 40.dp, size = 11.sp, variant = KeyVariant.Accent)
+        }
         FieldKey("COPY", { copy(context, source.text) }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
     }
     FieldProse(AnnotatedString(source.text), Modifier.padding(top = 12.dp), size = 12.sp, color = FieldColors.OnPanel)
@@ -531,6 +539,7 @@ private fun LibraryScreen(state: State, onBack: () -> Unit) {
                     when {
                         state.notesNote.isNotEmpty() -> state.notesNote
                         state.indexing && state.notesFiles == 0 -> "INDEXING"
+                        state.notesFiles == 0 -> "NO .MD OR .TXT FILES FOUND IN THIS FOLDER OR ITS SUBFOLDERS"
                         else -> "${Format.count(state.notesFiles)} NOTES · ${Format.count(state.notesPassages)} PASSAGES INDEXED" + if (state.indexing) " · UPDATING" else ""
                     },
                     10.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, tracking = 1.sp,

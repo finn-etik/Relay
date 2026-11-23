@@ -2,20 +2,22 @@
 # `libs.<name>`; the shared app setup in build-logic/ reads them too.
 
 [versions]
-agp = "8.7.3"
-kotlin = "2.4.0"
-compose-bom = "2024.12.01"
-activity-compose = "1.9.3"
-core-ktx = "1.15.0"
-lifecycle = "2.8.7"
-media3 = "1.4.1"
+agp = "9.3.1"
+kotlin = "2.4.21"
+compose-bom = "2026.11.01"
+activity-compose = "1.13.0"
+core-ktx = "1.19.0"
+lifecycle = "2.11.0"
+media3 = "1.11.1"
 litertlm = "0.19.1"
 zstd-jni = "1.5.6-9"
 junit = "4.13.2"
 
 # Android SDK levels shared by the Field apps and the :field library.
-compile-sdk = "35"
-target-sdk = "35"
+# compileSdk is 37.1 (API level 37, minor 1): what the current Compose needs.
+compile-sdk = "37"
+compile-sdk-minor = "1"
+target-sdk = "36"
 min-sdk = "26"
 
 [libraries]

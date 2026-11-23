@@ -5,9 +5,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+// Kotlin support is built into the Android Gradle plugin (since 9.0); only
+// the Compose compiler is a separate plugin.
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -16,7 +17,11 @@ plugins {
 val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
 android {
-    compileSdk = catalog.findVersion("compile-sdk").get().requiredVersion.toInt()
+    compileSdk {
+        version = release(catalog.findVersion("compile-sdk").get().requiredVersion.toInt()) {
+            minorApiLevel = catalog.findVersion("compile-sdk-minor").get().requiredVersion.toInt()
+        }
+    }
 
     defaultConfig {
         targetSdk = catalog.findVersion("target-sdk").get().requiredVersion.toInt()

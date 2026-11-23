@@ -62,11 +62,17 @@ object Catalog {
         ),
     )
 
+    /**
+     * Smallest first. The two at the top are the ones to start with: well
+     * under a gigabyte each, and enough for most everyday questions.
+     */
     val PACKS = listOf(
-        Pack("wikipedia", "WIKIPEDIA", "EVERY ARTICLE IN FULL, NO PICTURES", "wikipedia", "wikipedia_en_all_nopic_"),
-        Pack("wikipedia-mini", "WIKIPEDIA · INTRODUCTIONS", "THE OPENING OF EVERY ARTICLE", "wikipedia", "wikipedia_en_all_mini_"),
+        Pack("wikipedia-essentials", "WIKIPEDIA · ESSENTIALS", "THE OPENING OF THE MOST READ ARTICLES · SMALLEST", "wikipedia", "wikipedia_en_top_mini_"),
+        Pack("wikipedia-simple", "SIMPLE WIKIPEDIA", "EVERY ARTICLE IN FULL, IN PLAIN ENGLISH", "wikipedia", "wikipedia_en_simple_all_nopic_"),
         Pack("wikipedia-top", "WIKIPEDIA · TOP ARTICLES", "THE MOST READ ARTICLES IN FULL", "wikipedia", "wikipedia_en_top_nopic_"),
         Pack("wikibooks", "WIKIBOOKS", "OPEN TEXTBOOKS AND MANUALS", "wikibooks", "wikibooks_en_all_nopic_"),
+        Pack("wikipedia-mini", "WIKIPEDIA · ALL INTRODUCTIONS", "THE OPENING OF EVERY ARTICLE · LARGE", "wikipedia", "wikipedia_en_all_mini_"),
+        Pack("wikipedia", "WIKIPEDIA · EVERYTHING", "EVERY ARTICLE IN FULL, NO PICTURES · VERY LARGE", "wikipedia", "wikipedia_en_all_nopic_"),
     )
 
     fun model(id: String): Model = MODELS.firstOrNull { it.id == id } ?: MODELS.first()

@@ -101,6 +101,34 @@ class AskTest {
         assertEquals("camping.md · Gear", Ask.fromNotes("tent tarp", notes, 1000).single().label)
     }
 
+    @Test fun questionsAboutTheNotesGetTheTableOfContents() {
+        assertTrue(Ask.asksAboutNotes("what are my notes about?"))
+        assertTrue(Ask.asksAboutNotes("Did I write anything on bread? Have I written about tents"))
+        assertTrue(Ask.asksAboutNotes("summarise the notes"))
+        assertFalse(Ask.asksAboutNotes("Who was Marie Curie?"))
+        assertFalse(Ask.asksAboutNotes("a notable composer"))
+
+        val sources = Ask.fromNotes("what are my notes about?", notes, 2000)
+        assertEquals("Your notes · Overview", sources.single().label)
+        assertEquals("The notes folder holds 2 notes:\n- camping.md: Gear; Food\n- recipes.md: Bread", sources.single().text)
+        assertEquals(2, notes.files)
+
+        // "notes" is not itself a search word: this is about bread.
+        val bread = Ask.fromNotes("what do my notes say about sourdough bread?", notes, 2000)
+        assertEquals(listOf("Your notes · Overview", "recipes.md · Bread"), bread.map { it.label })
+
+        assertTrue(NotesIndex(emptyList()).overview(500) == null)
+        val many = NotesIndex((1..50).map { NoteChunk("note$it.md", "uri:$it", Passage("", "Text of note number $it.")) })
+        val short = many.overview(300)!!.text
+        assertTrue(short.length <= 300 + 14 && short.endsWith("(and more)") && short.contains("note1.md: Text of note number 1."))
+    }
+
+    @Test fun theInstructionSaysWhenNotesWereSearchedInVain() {
+        assertTrue(Ask.system("today", sourced = false, notes = 12).contains("12 notes"))
+        assertFalse(Ask.system("today", sourced = false, notes = 0).contains("notes folder"))
+        assertTrue(Ask.system("today", sourced = true, notes = 12).contains("(my notes)"))
+    }
+
     @Test fun promptNumbersSourcesFromOne() {
         val p = Ask.prompt(" Who? ", listOf(Source(Origin.NOTE, "a.md", "", "note text", "u"), Source(Origin.PACK, "T", "S", "article text", "r")))
         assertEquals("Sources:\n\n[1] a.md (my notes)\nnote text\n\n[2] T · S (encyclopedia)\narticle text\n\nQuestion: Who?", p)

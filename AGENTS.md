@@ -35,7 +35,7 @@ every bug found so far: `docs/REVIEW.md`. What might come next:
 ./gradlew :dial:assembleDebug   # one app
 ```
 
-Needs JDK 17 and the Android SDK (API 35). Without an SDK, use CI: the
+Needs JDK 17 and the Android SDK (API 37.1). Without an SDK, use CI: the
 `Build APKs` workflow runs the tests and builds every APK on any branch
 (`gh workflow run build.yml --ref <branch>`; APKs are the `apks` artifact).
 A push to `main` also publishes them to the `apks` branch.

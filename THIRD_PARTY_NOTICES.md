@@ -9,11 +9,11 @@ public repository and in distributed APKs.
 
 | Component | Version | License |
 |-----------|---------|---------|
-| Jetpack Compose (foundation, ui, runtime and their transitive AndroidX deps) | BOM 2024.12.01 | Apache License 2.0 |
-| AndroidX Activity Compose | 1.9.3 | Apache License 2.0 |
-| AndroidX Core KTX | 1.15.0 | Apache License 2.0 |
-| AndroidX Lifecycle Runtime KTX | 2.8.7 | Apache License 2.0 |
-| Kotlin standard library | 2.4.0 | Apache License 2.0 |
+| Jetpack Compose (foundation, ui, runtime and their transitive AndroidX deps) | BOM 2026.11.01 | Apache License 2.0 |
+| AndroidX Activity Compose | 1.13.0 | Apache License 2.0 |
+| AndroidX Core KTX | 1.19.0 | Apache License 2.0 |
+| AndroidX Lifecycle Runtime KTX | 2.11.0 | Apache License 2.0 |
+| Kotlin standard library | 2.4.21 | Apache License 2.0 |
 | kotlinx.coroutines (transitive) | via AndroidX | Apache License 2.0 |
 | Speaker icon path data (`res/drawable/ic_relay.xml`) | Material Design Icons, "volume up" | Apache License 2.0, Google |
 
@@ -64,7 +64,7 @@ DIAL additionally ships:
 
 | Component | License |
 |-----------|---------|
-| AndroidX Media3 1.4.1 (`media3-exoplayer`, `media3-exoplayer-hls` and their Media3 dependencies) | Apache License 2.0, The Android Open Source Project |
+| AndroidX Media3 1.11.1 (`media3-exoplayer`, `media3-exoplayer-hls` and their Media3 dependencies) | Apache License 2.0, The Android Open Source Project |
 
 DIAL reads, at runtime and not inside the APK:
 

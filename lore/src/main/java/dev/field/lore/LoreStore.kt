@@ -226,9 +226,10 @@ object LoreStore {
             val chat = _state.value.chats.firstOrNull { it.id == chatId }
             val history = if (chat == null) emptyList() else Ask.history(Chats.before(chat, turnId), model.historyChars)
 
+            val searchedNotes = if (s.useNotes) notes?.files ?: 0 else 0
             var shown = 0L
             fun write(history: List<Pair<String, String>>, sources: List<Source>): String =
-                engine.answer(Ask.system(today(), sources.isNotEmpty()), history, Ask.prompt(question, sources)) { text ->
+                engine.answer(Ask.system(today(), sources.isNotEmpty(), searchedNotes), history, Ask.prompt(question, sources)) { text ->
                     val now = SystemClock.uptimeMillis()
                     if (now - shown >= 80) {
                         shown = now
@@ -298,6 +299,7 @@ object LoreStore {
 
     /** Opens the whole article or note a source was taken from. */
     fun read(source: Source) = desk.execute {
+        if (source.ref.isEmpty()) return@execute
         val passages = try {
             if (source.origin == Origin.NOTE) {
                 Passages.ofNote(readText(Uri.parse(source.ref)), size = 1200)
