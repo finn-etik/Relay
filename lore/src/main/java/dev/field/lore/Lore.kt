@@ -68,7 +68,7 @@ object Catalog {
      */
     val PACKS = listOf(
         Pack("wikipedia-essentials", "WIKIPEDIA · ESSENTIALS", "THE OPENING OF THE MOST READ ARTICLES · SMALLEST", "wikipedia", "wikipedia_en_top_mini_"),
-        Pack("wikipedia-simple", "SIMPLE WIKIPEDIA", "EVERY ARTICLE IN FULL, IN PLAIN ENGLISH", "wikipedia", "wikipedia_simple_all_nopic_"),
+        Pack("wikipedia-simple", "SIMPLE WIKIPEDIA", "EVERY ARTICLE IN FULL, IN PLAIN ENGLISH", "wikipedia", "wikipedia_en-simple_all_nopic_"),
         Pack("wikipedia-top", "WIKIPEDIA · TOP ARTICLES", "THE MOST READ ARTICLES IN FULL", "wikipedia", "wikipedia_en_top_nopic_"),
         Pack("wikibooks", "WIKIBOOKS", "OPEN TEXTBOOKS AND MANUALS", "wikibooks", "wikibooks_en_all_nopic_"),
         Pack("wikipedia-mini", "WIKIPEDIA · ALL INTRODUCTIONS", "THE OPENING OF EVERY ARTICLE · LARGE", "wikipedia", "wikipedia_en_all_mini_"),
