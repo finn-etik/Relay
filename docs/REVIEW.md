@@ -434,3 +434,24 @@ This is two years of library changes at once, checked by the unit tests
 and the release build only. Every app should be opened once on a phone;
 DIAL (Media3 1.4 to 1.11) and anything with a keyboard or a sheet
 (Compose 1.7 to 1.13) are the places to look first.
+
+## PAGE 2.0 (2026-11-25)
+
+- **Editor on the current text field.** The editor moved from Compose's
+  deprecated value-based `BasicTextField` to the state-based one: the
+  Markdown painting is an `OutputTransformation`, list continuation an
+  `InputTransformation`, and tool keys edit the state directly. This
+  brought undo and redo (new keys in the tool row).
+- **Sync with Drime** (see docs/SYNC.md). The rules are a pure decision
+  table with tests; the cloud client is tested against a stand-in server
+  that answers as Drime's documentation describes.
+
+Not verified, to check on a phone:
+
+- The editor: typing, the cursor in typewriter mode, focus fading
+  following the cursor, list continuation on Enter, tool keys, undo and
+  redo, and that the keyboard's suggestions behave.
+- Sync against the real Drime. Unknowns the documentation leaves open:
+  what an upload does to an existing file of the same name (both cases
+  are handled), and whether `updated_at` is stable between listings.
+  First test with a few throwaway notes.

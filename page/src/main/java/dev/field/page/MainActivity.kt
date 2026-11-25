@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import dev.field.ui.EmptyCard
 import dev.field.ui.FieldColors
 import dev.field.ui.FieldFold
+import dev.field.ui.FieldInput
 import dev.field.ui.FieldKey
 import dev.field.ui.FieldRow
 import dev.field.ui.FieldScreen
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PageStore.load(applicationContext)
+        PageSync.load(applicationContext)
         // Set the palette before the first frame, so a dark start never flashes light.
         val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         applyPalette(isDark(PageStore.state.value.settings.theme, night))
@@ -100,6 +102,13 @@ class MainActivity : ComponentActivity() {
         FieldColors.palette = if (dark) FieldColors.Dark else FieldColors.Light
         fieldEdgeToEdge(dark)
     }
+}
+
+/** "14:32" today, "25 NOV 14:32" otherwise. */
+private fun clock(at: Long): String {
+    val time = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault())
+    val pattern = if (time.toLocalDate() == LocalDate.now()) "HH:mm" else "d MMM HH:mm"
+    return time.format(java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ENGLISH)).uppercase()
 }
 
 fun isDark(mode: ThemeMode, systemDark: Boolean): Boolean = when (mode) {
@@ -148,6 +157,18 @@ fun Library(state: PageState, onOpen: (String) -> Unit) {
         unavailable = found == null
         docs = found ?: emptyList()
     }
+
+    // Sync: once whenever the library comes up (app start, back from a note), and on request.
+    val sync by PageSync.status.collectAsState()
+    var token by remember { mutableStateOf("") }
+    var connecting by remember { mutableStateOf(false) }
+    fun syncNow() {
+        scope.launch {
+            withContext(Dispatchers.IO) { PageSync.run(context) }
+            reload++
+        }
+    }
+    LaunchedEffect(sync.connected) { if (sync.connected) syncNow() }
 
     fun newNote(text: String = "") {
         val id = PageStore.create(context, text)
@@ -217,6 +238,17 @@ fun Library(state: PageState, onOpen: (String) -> Unit) {
             FieldKey("IMPORT", { notice = ""; importer.launch(arrayOf("text/*", "application/octet-stream")) }, Modifier.weight(1f), size = 12.sp)
         }
         if (notice.isNotEmpty()) EmptyCard("NOTE", notice)
+        if (sync.connected) {
+            FieldText(
+                when {
+                    sync.running -> "SYNCING WITH DRIME"
+                    sync.error.isNotEmpty() -> "SYNC FAILED / SEE SYNC BELOW"
+                    sync.lastAt > 0 -> "SYNCED " + clock(sync.lastAt) + " / " + sync.summary
+                    else -> "NOT SYNCED YET"
+                },
+                9.sp, color = if (sync.error.isNotEmpty() && !sync.running) accent else FieldColors.Dim, tracking = 1.sp,
+            )
+        }
         val list = docs
         if (unavailable) {
             EmptyCard("FOLDER UNAVAILABLE", "THE NOTES FOLDER WAS MOVED OR ITS ACCESS WITHDRAWN. YOUR FILES ARE UNTOUCHED. CHOOSE THE FOLDER AGAIN BELOW.")
@@ -257,6 +289,58 @@ fun Library(state: PageState, onOpen: (String) -> Unit) {
                 Ext.entries.forEach { e ->
                     FieldKey(e.suffix.uppercase(), { set { it.copy(ext = e) } }, Modifier.weight(1f), height = 40.dp, size = 12.sp, active = settings.ext == e)
                 }
+            }
+        }
+        FieldFold("SYNC", if (sync.connected) "DRIME / " + sync.account.uppercase() else "OFF") {
+            if (!sync.connected) {
+                PaperCard {
+                    FieldText("DRIME CLOUD", 12.sp, tracking = 1.sp)
+                    FieldText(
+                        "KEEPS YOUR NOTES IN STEP WITH A FOLDER NAMED " + PageSync.FOLDER + " IN YOUR DRIME, AS THE SAME PLAIN FILES. " +
+                            "IN DRIME, OPEN ACCOUNT SETTINGS, DEVELOPERS, CREATE A TOKEN, AND PASTE IT HERE.",
+                        9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
+                    )
+                }
+                FieldInput(token, { token = it }, "DRIME ACCESS TOKEN")
+                FieldKey(
+                    if (connecting) "CONNECTING" else "CONNECT",
+                    {
+                        connecting = true
+                        notice = ""
+                        scope.launch {
+                            val problem = withContext(Dispatchers.IO) { PageSync.connect(context, token) }
+                            connecting = false
+                            if (problem == null) token = "" else notice = problem
+                        }
+                    },
+                    Modifier.fillMaxWidth(), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent, enabled = token.isNotBlank() && !connecting,
+                )
+            } else {
+                PaperCard {
+                    FieldText("DRIME / " + PageSync.FOLDER, 12.sp, tracking = 1.sp)
+                    FieldText(
+                        when {
+                            sync.running -> "SYNCING"
+                            sync.lastAt > 0 -> "LAST SYNC " + clock(sync.lastAt) + " / " + sync.summary
+                            else -> "NOT SYNCED YET"
+                        },
+                        9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, tracking = 1.sp,
+                    )
+                    if (sync.error.isNotEmpty()) {
+                        FieldText(sync.error, 9.sp, Modifier.padding(top = 4.dp), color = accent, lineHeight = 14.sp)
+                    }
+                    FieldText(
+                        "SYNCS WHEN YOU OPEN PAGE AND WHEN YOU LEAVE A NOTE. A NOTE CHANGED IN TWO PLACES IS KEPT TWICE. DELETED NOTES GO TO DRIME'S TRASH.",
+                        9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
+                    )
+                }
+                FieldKey("SYNC NOW", { syncNow() }, Modifier.fillMaxWidth(), height = 40.dp, size = 12.sp, enabled = !sync.running)
+                var sure by remember { mutableStateOf(false) }
+                FieldKey(
+                    if (sure) "TAP AGAIN TO DISCONNECT (NOTES STAY ON BOTH SIDES)" else "DISCONNECT",
+                    { if (sure) { sure = false; PageSync.disconnect(context) } else { sure = true } },
+                    Modifier.fillMaxWidth(), height = 40.dp, size = 10.sp,
+                )
             }
         }
         FieldFold("DAILY GOAL", if (goals.target > 0) goals.target.toString() + " WORDS" else "OFF") {

@@ -122,11 +122,18 @@ out so far because turning them on needs one pass to fix what they find.
 - Dark mode (comes with item 8 above).
 
 **All apps**
-- Move the text fields to Compose's state-based `BasicTextField`: the
-  value-based one (used by `FieldInput` and PAGE's editor, with its
-  `VisualTransformation`) is deprecated since Compose 1.13. It still
-  works; the change touches PAGE's editor deeply and wants a phone to
-  test on.
+- `FieldInput` (the one-line input every app uses) still sits on Compose's
+  deprecated value-based text field. PAGE's editor has moved to the
+  state-based one; `FieldInput` should follow once that has proven itself
+  on a phone.
+
+**PAGE**
+- Desktop PAGE (Linux, macOS) that syncs with the same Drime folder; the
+  protocol is in docs/SYNC.md.
+- Sync in the background (WorkManager), and Drime OAuth instead of a
+  pasted token if PAGE is ever shared with others.
+- Merge instead of "kept twice" when two devices edit different parts of
+  a note.
 
 **LORE**
 - Speak the question: REEL's speech recognition as an input key.

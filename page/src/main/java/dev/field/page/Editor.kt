@@ -3,6 +3,7 @@ package dev.field.page
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +26,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldBuffer
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +42,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -45,7 +52,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
@@ -54,10 +60,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,6 +76,7 @@ import dev.field.ui.LocalAccent
 import dev.field.ui.PaperCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 
 private enum class Panel { NONE, SPRINT, STYLE, MORE }
@@ -89,26 +92,24 @@ private fun issueColor(kind: IssueKind): Color = when (kind) {
 }
 
 /**
- * Paints the raw Markdown: syntax marks dim, emphasis shown, style-check
- * washes behind, and everything outside [focus] faded. The text itself is
- * untouched, so offsets map one to one. Ranges are clamped because style
- * issues are computed a moment behind the typing.
+ * Paints the raw Markdown as it is shown: syntax marks dim, emphasis
+ * visible, style-check washes behind, and everything outside [focus] faded.
+ * Only styles are added; the text is untouched. Ranges are clamped because
+ * the spans are computed a moment behind the typing.
  */
-private fun decorate(
-    text: String,
+private fun TextFieldBuffer.decorate(
     md: List<MdSpan>,
     issues: List<Issue>,
     focus: Span?,
     ink: Color,
     dim: Color,
     grid: Color,
-): AnnotatedString {
-    val builder = AnnotatedString.Builder(text)
-    val n = text.length
+) {
+    val n = length
     fun add(style: SpanStyle, start: Int, end: Int) {
         val a = start.coerceIn(0, n)
         val z = end.coerceIn(0, n)
-        if (a < z) builder.addStyle(style, a, z)
+        if (a < z) addStyle(style, a, z)
     }
     for (i in issues) {
         val alpha = if (i.kind == IssueKind.LONG) 0.14f else 0.34f
@@ -130,7 +131,6 @@ private fun decorate(
         add(faded, 0, focus.start)
         add(faded, focus.end, n)
     }
-    return builder.toAnnotatedString()
 }
 
 @Composable
@@ -159,6 +159,7 @@ fun Editor(id: String, state: PageState, onClose: () -> Unit) {
 }
 
 /** The writing screen: one note, autosaved, with focus, typewriter, style check and sprints. */
+@OptIn(ExperimentalFoundationApi::class) // undo / redo
 @Composable
 private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> Unit) {
     val activity = LocalContext.current
@@ -170,44 +171,57 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
     val density = LocalDensity.current
     val keyboard = LocalSoftwareKeyboardController.current
 
-    var field by remember(id) { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
-    var words by remember(id) { mutableIntStateOf(Text.words(field.text)) }
+    // The text and its cursor live in this one object; the field edits it directly.
+    val field = remember(id) { TextFieldState(initial, TextRange(initial.length)) }
+    val currentText = field.text.toString()
+    var words by remember(id) { mutableIntStateOf(Text.words(initial)) }
     var zen by rememberSaveable { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.NONE) }
     var confirmDelete by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    val title = remember(field.text) { Text.title(field.text) }
+    val title = remember(currentText) { Text.title(currentText) }
 
-    fun change(new: TextFieldValue) {
-        var next = new
-        if (new.text != field.text) {
-            if (new.selection.collapsed) {
-                Text.autoList(field.text, new.text, new.selection.start)?.let {
-                    next = TextFieldValue(it.text, TextRange(it.selStart, it.selEnd))
-                }
-            }
-            val count = Text.words(next.text)
+    // Every change of the text, however it came about (typing, a tool key, undo):
+    // book the words to today's goal and stage the text for saving.
+    LaunchedEffect(id) {
+        snapshotFlow { field.text.toString() }.drop(1).collect { text ->
+            val count = Text.words(text)
             if (count != words) {
                 val delta = count - words
                 words = count
                 PageStore.update(context) { it.copy(goals = it.goals.record(today(), delta, System.currentTimeMillis())) }
             }
-            PageStore.stage(id, next.text)
+            PageStore.stage(id, text)
         }
-        field = next
     }
 
-    fun applyEdit(edit: Edit) = change(TextFieldValue(edit.text, TextRange(edit.selStart, edit.selEnd)))
+    // Enter in a list continues the list (or ends it on an empty item).
+    val lists = remember {
+        InputTransformation {
+            if (selection.collapsed) {
+                Text.autoList(originalText.toString(), asCharSequence().toString(), selection.start)?.let {
+                    replace(0, length, it.text)
+                    selection = TextRange(it.selStart, it.selEnd)
+                }
+            }
+        }
+    }
+
+    /** A tool key's change (bold, heading, list): one step for undo. */
+    fun applyEdit(edit: Edit) = field.edit {
+        replace(0, length, edit.text)
+        selection = TextRange(edit.selStart.coerceIn(0, edit.text.length), edit.selEnd.coerceIn(0, edit.text.length))
+    }
 
     fun set(edit: (Settings) -> Settings) = PageStore.update(context) { it.copy(settings = edit(it.settings)) }
 
     fun close() {
-        PageStore.settle(context, id, field.text) // save; drop an empty sheet; name the file
+        PageStore.settle(context, id, field.text.toString()) // save; drop an empty sheet; name the file
         onClose()
     }
 
     // Autosave shortly after the last keystroke (and in MainActivity.onStop).
-    LaunchedEffect(field.text) {
+    LaunchedEffect(currentText) {
         delay(600)
         withContext(Dispatchers.IO) { PageStore.flush(context) }
     }
@@ -245,18 +259,17 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
     }
 
     val saveMd = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
-        if (uri != null) PageStore.writeUri(context, uri, field.text)
+        if (uri != null) PageStore.writeUri(context, uri, currentText)
     }
     val saveHtml = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { uri ->
-        if (uri != null) PageStore.writeUri(context, uri, Html.document(title, field.text))
+        if (uri != null) PageStore.writeUri(context, uri, Html.document(title, currentText))
     }
     val saveTxt = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        if (uri != null) PageStore.writeUri(context, uri, Html.plain(field.text))
+        if (uri != null) PageStore.writeUri(context, uri, Html.plain(currentText))
     }
 
     // ---- what the text looks like ----
 
-    val currentText = field.text
     val styleOn = settings.style
     val md = remember(currentText) { Markdown.spans(currentText) }
     val issues by produceState(emptyList<Issue>(), currentText, styleOn) {
@@ -278,10 +291,8 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
     val ink = FieldColors.Ink
     val dim = FieldColors.Dim
     val grid = FieldColors.Grid
-    val transformation = remember(md, issues, focus, ink, dim, grid) {
-        VisualTransformation { original ->
-            TransformedText(decorate(original.text, md, issues, focus, ink, dim, grid), OffsetMapping.Identity)
-        }
+    val decoration = remember(md, issues, focus, ink, dim, grid) {
+        OutputTransformation { decorate(md, issues, focus, ink, dim, grid) }
     }
     val fontSize = when (settings.size) {
         0 -> 15
@@ -339,9 +350,11 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
                 val bottom = if (typewriter) maxOf(edge, viewport - anchor - linePx) else edge
 
                 val scroll = rememberScrollState()
-                var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-                LaunchedEffect(cursor, layout, typewriter, viewport) {
-                    val l = layout
+                // The field hands out a way to ask for its current layout; `laidOut` ticks when there is a new one.
+                var layoutOf by remember { mutableStateOf<(() -> TextLayoutResult?)?>(null) }
+                var laidOut by remember { mutableIntStateOf(0) }
+                LaunchedEffect(cursor, laidOut, typewriter, viewport) {
+                    val l = layoutOf?.invoke()
                     if (typewriter && l != null) {
                         val offset = cursor.coerceIn(0, l.layoutInput.text.length)
                         // The text starts `top` (= anchor) below the scroll origin, so the
@@ -363,17 +376,21 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
                 ) {
                     Spacer(Modifier.height(with(density) { top.toDp() }))
                     Box(Modifier.widthIn(max = 640.dp).fillMaxWidth()) {
-                        if (field.text.isEmpty()) {
+                        if (currentText.isEmpty()) {
                             FieldText("START WRITING", 12.sp, color = dim, tracking = 2.sp)
                         }
                         BasicTextField(
-                            value = field,
-                            onValueChange = { change(it) },
+                            state = field,
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                             textStyle = textStyle,
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            visualTransformation = transformation,
-                            onTextLayout = { layout = it },
+                            lineLimits = TextFieldLineLimits.MultiLine(),
+                            inputTransformation = lists,
+                            outputTransformation = decoration,
+                            onTextLayout = { getResult ->
+                                layoutOf = getResult
+                                laidOut++
+                            },
                             cursorBrush = SolidColor(accent),
                         )
                     }
@@ -443,18 +460,18 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
 
                     Panel.MORE -> PaperCard(Modifier.padding(horizontal = 16.dp)) {
                         FieldText(
-                            "$words W / ${field.text.length} CH / ${Text.readingMinutes(words)} MIN READ",
+                            "$words W / ${currentText.length} CH / ${Text.readingMinutes(words)} MIN READ",
                             10.sp, color = dim, tracking = 1.sp,
                         )
                         val name = Text.fileName(title)
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FieldKey("SHARE", { Export.share(activity, title, field.text) }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
+                            FieldKey("SHARE", { Export.share(activity, title, currentText) }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
                             FieldKey(".MD", { saveMd.launch("$name.md") }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
                             FieldKey(".HTML", { saveHtml.launch("$name.html") }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FieldKey(".TXT", { saveTxt.launch("$name.txt") }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
-                            FieldKey("PDF", { Export.print(activity, title, Html.document(title, field.text)) }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
+                            FieldKey("PDF", { Export.print(activity, title, Html.document(title, currentText)) }, Modifier.weight(1f), height = 40.dp, size = 11.sp)
                             FieldKey(
                                 if (confirmDelete) "SURE?" else "DELETE",
                                 {
@@ -499,11 +516,13 @@ private fun Sheet(id: String, initial: String, state: PageState, onClose: () -> 
                         set { it.copy(style = !it.style) }
                     }
                     Tool("SPRINT", active = sprint != null) { panel = if (panel == Panel.SPRINT) Panel.NONE else Panel.SPRINT }
-                    Tool("H", width = 40) { applyEdit(Text.cycleHeading(field.text, field.selection.start)) }
-                    Tool("B", width = 40) { applyEdit(Text.wrap(field.text, field.selection.min, field.selection.max, "**")) }
-                    Tool("I", width = 40) { applyEdit(Text.wrap(field.text, field.selection.min, field.selection.max, "*")) }
-                    Tool("LIST", width = 52) { applyEdit(Text.togglePrefix(field.text, field.selection.start, "- ")) }
-                    Tool("QUOTE", width = 56) { applyEdit(Text.togglePrefix(field.text, field.selection.start, "> ")) }
+                    Tool("UNDO", width = 56) { if (field.undoState.canUndo) field.undoState.undo() }
+                    Tool("REDO", width = 56) { if (field.undoState.canRedo) field.undoState.redo() }
+                    Tool("H", width = 40) { applyEdit(Text.cycleHeading(currentText, field.selection.start)) }
+                    Tool("B", width = 40) { applyEdit(Text.wrap(currentText, field.selection.min, field.selection.max, "**")) }
+                    Tool("I", width = 40) { applyEdit(Text.wrap(currentText, field.selection.min, field.selection.max, "*")) }
+                    Tool("LIST", width = 52) { applyEdit(Text.togglePrefix(currentText, field.selection.start, "- ")) }
+                    Tool("QUOTE", width = 56) { applyEdit(Text.togglePrefix(currentText, field.selection.start, "> ")) }
                     Tool("MORE", active = panel == Panel.MORE) {
                         confirmDelete = false
                         panel = if (panel == Panel.MORE) Panel.NONE else Panel.MORE

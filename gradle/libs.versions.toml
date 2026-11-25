@@ -12,6 +12,7 @@ media3 = "1.11.1"
 litertlm = "0.19.1"
 zstd-jni = "1.5.6-9"
 junit = "4.13.2"
+json = "20240303"
 
 # Android SDK levels shared by the Field apps and the :field library.
 # compileSdk is 37.1 (API level 37, minor 1): what the current Compose needs.
@@ -33,6 +34,7 @@ litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", ve
 litertlm-jvm = { module = "com.google.ai.edge.litertlm:litertlm-jvm", version.ref = "litertlm" }
 zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstd-jni" }
 junit = { module = "junit:junit", version.ref = "junit" }
+json = { module = "org.json:json", version.ref = "json" }
 
 # Gradle plugins as libraries: build-logic/ compiles against them.
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }

@@ -118,7 +118,7 @@ be signed with different keys.
 ## Dependencies
 
 AndroidX and Kotlin only, no other third-party libraries, and nothing that
-needs Google Play services. Versions live in `gradle/libs.versions.toml`.
+needs Google Play services. The network is used only where a feature is about it (DIAL streams, LORE downloads, PAGE's Drime sync, REEL's model download), with plain `HttpURLConnection`. Versions live in `gradle/libs.versions.toml`.
 A new dependency also gets a line in `THIRD_PARTY_NOTICES.md` and a comment
 at its declaration saying why it earns its place.
 

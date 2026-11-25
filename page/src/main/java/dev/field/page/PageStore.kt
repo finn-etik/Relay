@@ -79,13 +79,15 @@ object PageStore {
     private fun info(id: String, name: String, modified: Long, text: String) =
         DocInfo(id, name, Text.title(text), Text.words(text), modified)
 
-    /** Newest first. Null = the chosen folder cannot be read (removed, or access withdrawn). */
-    fun list(context: Context): List<DocInfo>? {
+    /** A note with its text. */
+    class Note(val id: String, val name: String, val modified: Long, val text: String)
+
+    /** Every note with its text. Null = the chosen folder cannot be read (removed, or access withdrawn). */
+    fun snapshot(context: Context): List<Note>? {
         val tree = tree()
         if (tree == null) {
             return (privateDir(context).listFiles { f -> f.isFile && isDoc(f.name) } ?: emptyArray())
-                .map { f -> info(f.name, f.name, f.lastModified(), runCatching { f.readText() }.getOrDefault("")) }
-                .sortedByDescending { it.modified }
+                .map { f -> Note(f.name, f.name, f.lastModified(), runCatching { f.readText() }.getOrDefault("")) }
         }
         return runCatching {
             val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
@@ -93,18 +95,37 @@ object PageStore {
                 Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME,
                 Document.COLUMN_LAST_MODIFIED, Document.COLUMN_MIME_TYPE,
             )
-            val out = ArrayList<DocInfo>()
+            val out = ArrayList<Note>()
             val cursor = context.contentResolver.query(children, columns, null, null, null) ?: error("no cursor")
             cursor.use { c ->
                 while (c.moveToNext()) {
                     val id = c.getString(0) ?: continue
                     val name = c.getString(1) ?: continue
                     if (c.getString(3) == Document.MIME_TYPE_DIR || !isDoc(name)) continue
-                    out.add(info(id, name, c.getLong(2), readUri(context, docUri(tree, id)) ?: ""))
+                    out.add(Note(id, name, c.getLong(2), readUri(context, docUri(tree, id)) ?: ""))
                 }
             }
-            out.sortedByDescending { it.modified }
+            out
         }.getOrNull()
+    }
+
+    /** The library, newest first. Null = the folder cannot be read. */
+    fun list(context: Context): List<DocInfo>? =
+        snapshot(context)?.map { info(it.id, it.name, it.modified, it.text) }?.sortedByDescending { it.modified }
+
+    /**
+     * Writes [text] to the note called [name], creating it if there is none
+     * (this is how sync brings a note in). False = it could not be written.
+     */
+    @Synchronized
+    fun put(context: Context, name: String, text: String): Boolean {
+        val safe = File(name).name
+        if (!isDoc(safe)) return false
+        val existing = snapshot(context)?.firstOrNull { it.name == safe }
+        if (existing != null) return write(context, existing.id, text)
+        val tree = tree() ?: return write(context, safe, text)
+        val id = createInTree(context, tree, safe) ?: return false
+        return writeUri(context, docUri(tree, id), text)
     }
 
     /** Null = unreadable. The editor must not open (and later overwrite) a note it could not read. */
