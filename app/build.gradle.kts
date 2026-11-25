@@ -14,6 +14,18 @@ android {
         versionName = "1.2"
     }
 
+    signingConfigs {
+        create("field") {
+            System.getenv("FIELD_KEYSTORE_PATH")?.let { path ->
+                val password = System.getenv("FIELD_KEYSTORE_PASSWORD")
+                storeFile = file(path)
+                storePassword = password
+                keyAlias = System.getenv("FIELD_KEY_ALIAS").orEmpty().ifEmpty { "field" }
+                keyPassword = System.getenv("FIELD_KEY_PASSWORD").orEmpty().ifEmpty { password }
+            }
+        }
+    }
+
     buildTypes {
         release {
             // R8 strips unused Compose/Kotlin code: the release APK is a
@@ -24,10 +36,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Personal sideload app: sign release builds with the local
-            // debug key so `assembleRelease` produces an installable APK.
-            // Swap in your own keystore if you ever distribute it.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI signs with the kit's permanent key (see build.yml), so new
+            // builds install over old ones; a local build uses the debug key.
+            signingConfig = signingConfigs.getByName(if (System.getenv("FIELD_KEYSTORE_PATH") != null) "field" else "debug")
         }
     }
 }

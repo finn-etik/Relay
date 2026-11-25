@@ -23,15 +23,20 @@ android {
     }
 
     signingConfigs {
-        // CI signs with a stable key when the FIELD_KEYSTORE secret is set,
-        // so new builds install over old ones. Otherwise: the debug key.
+        // CI signs with the kit's permanent key when the FIELD_KEYSTORE_B64
+        // and FIELD_KEYSTORE_PASSWORD secrets are set, so new builds install
+        // over old ones. Otherwise: the debug key. The alias is "field" and
+        // the key's password the keystore's, unless secrets say otherwise.
         create("field") {
             System.getenv("FIELD_KEYSTORE_PATH")?.let { path ->
+                val password = System.getenv("FIELD_KEYSTORE_PASSWORD")
                 storeFile = file(path)
-                storePassword = System.getenv("FIELD_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("FIELD_KEY_ALIAS")
-                keyPassword = System.getenv("FIELD_KEY_PASSWORD")
+                storePassword = password
+                keyAlias = System.getenv("FIELD_KEY_ALIAS").orEmpty().ifEmpty { "field" }
+                keyPassword = System.getenv("FIELD_KEY_PASSWORD").orEmpty().ifEmpty { password }
             }
+        }
+    }
         }
     }
 
