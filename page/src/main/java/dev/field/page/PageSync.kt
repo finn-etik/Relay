@@ -2,6 +2,13 @@ package dev.field.page
 
 import android.content.Context
 import android.content.SharedPreferences
+import dev.field.cloud.Drime
+import dev.field.cloud.DrimeEntry
+import dev.field.cloud.LocalNote
+import dev.field.cloud.RemoteNote
+import dev.field.cloud.Sync
+import dev.field.cloud.SyncAction
+import dev.field.cloud.Synced
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -124,8 +131,8 @@ object PageSync {
         PageStore.flush(context)
         val notes = PageStore.snapshot(context) ?: throw IOException("THE NOTES FOLDER ON THIS PHONE CANNOT BE READ.")
         val local = LinkedHashMap<String, PageStore.Note>()
-        for (n in notes) if (Sync.isNote(n.name)) local.putIfAbsent(n.name, n)
-        val remote = drime.list(folderHash).filter { !it.folder && Sync.isNote(it.name) }
+        for (n in notes) if (isNote(n.name)) local.putIfAbsent(n.name, n)
+        val remote = drime.list(folderHash).filter { !it.folder && isNote(it.name) }
         val byId = remote.associateBy { it.id }
         val memory = HashMap(readBase(p))
 
@@ -201,6 +208,10 @@ object PageSync {
         }
         return done
     }
+
+    /** Which files are notes. */
+    private fun isNote(name: String): Boolean =
+        !name.startsWith(".") && listOf(".md", ".txt", ".markdown").any { name.endsWith(it, ignoreCase = true) }
 
     private fun stamp(e: DrimeEntry) = "${e.updated}/${e.size}"
 

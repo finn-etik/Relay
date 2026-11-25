@@ -1,4 +1,4 @@
-package dev.field.page
+package dev.field.cloud
 
 import java.security.MessageDigest
 
@@ -38,15 +38,17 @@ sealed interface SyncAction {
 }
 
 /**
- * PAGE's sync, as a decision table. It is deliberately simple so that a
- * second implementation (the desktop PAGE) can follow the same rules; they
- * are written out for that purpose in docs/SYNC.md.
+ * The kit's file sync, as a decision table: PAGE's notes and LIST's shared
+ * lists both follow it. It is deliberately simple so that a second
+ * implementation (a desktop app) can follow the same rules; they are
+ * written out for that purpose in docs/SYNC.md.
  *
- * A note is one plain text file; the file name is its identity. For every
+ * A note (or list) is one plain text file; the file name is its identity. For every
  * name, sync compares three things: the file here, the file in the cloud
  * folder, and what it remembers of both from the last sync ([Synced]).
- * Whichever side changed since then wins; if both did, nothing is lost:
- * the cloud text keeps the name and the local text is kept beside it.
+ * Whichever side changed since then wins; if both did, it is a conflict,
+ * which the app resolves without losing either text (PAGE keeps both
+ * notes, LIST merges the two lists task by task).
  *
  * Pure: no files, no network, no clock.
  */
@@ -103,10 +105,6 @@ object Sync {
         val suffix = if (dot > 0) name.substring(dot) else ""
         return "$stem (conflict $stamp)$suffix"
     }
-
-    /** Which files are notes. */
-    fun isNote(name: String): Boolean =
-        !name.startsWith(".") && listOf(".md", ".txt", ".markdown").any { name.endsWith(it, ignoreCase = true) }
 
     fun hash(text: String): String =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

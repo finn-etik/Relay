@@ -1,9 +1,10 @@
-# PAGE sync
+# Sync through Drime
 
-How PAGE keeps notes in step across devices, written for whoever builds
-the other end (the desktop PAGE). The phone's implementation is
-`page/…/Sync.kt` (the rules, pure and tested), `PageSync.kt` (carrying
-them out) and `Drime.kt` (the cloud calls).
+How PAGE keeps notes, and LIST keeps shared lists, in step across devices
+and people; written for whoever builds another end (a desktop app). The
+shared code is `field/…/cloud/Sync.kt` (the rules, pure and tested) and
+`Drime.kt` (the cloud calls); `PageSync.kt` and `ListSync.kt` carry the
+rules out. PAGE is described first; LIST's differences follow at the end.
 
 ## What is in the cloud
 
@@ -94,3 +95,32 @@ if Drime gave the new one another name, it is renamed.
   not a merge.
 - Sync runs when PAGE opens and when a note is closed, not in the
   background.
+
+## LIST: shared lists
+
+A **Drime space** is any Drime folder holding one Markdown file per list
+(the format is in `TaskFile.kt`: a `# Title` line and `- [ ]` task lines
+with an `id:` marker). The phone keeps a copy of the files in app storage
+and syncs it with the folder by the rules above, with these differences:
+
+- **Conflicts are merged, not kept twice.** Where both sides changed a
+  list, the two are merged task by task (by task id: done wins, steps are
+  united, new tasks from both sides are kept) and the result is uploaded.
+- **Two files of one name** in the folder (two phones uploading at the
+  same moment) are merged into one the same way; the extras go to the
+  trash.
+- **A list edited while a sync is on the network** is merged with what
+  the sync brings, never overwritten.
+- **When:** a few seconds after every edit, on opening LIST, and once a
+  minute while it is on screen.
+
+Because merging unites tasks, a task one person deletes while the other
+edits the same list at the same time can come back. Ticking it off does
+not have that problem.
+
+**Two people, one space.** Either both phones use the same Drime account
+(each pastes a token of that account), or the owner shares the folder
+with the other's account: `POST /file-entries/<folder id>/share` with
+`{"emails":["…"],"permissions":["view","edit","download"]}`. The other
+finds it with `GET /drive/file-entries?sharedOnly=true` and adds it as a
+space.

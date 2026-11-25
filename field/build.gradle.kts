@@ -15,4 +15,9 @@ dependencies {
     api(libs.activity.compose)
     api(libs.core.ktx)
     api(libs.lifecycle.runtime.ktx)
+
+    testImplementation(libs.junit)
+    // Android ships org.json, the build machine's JVM does not: the Drime
+    // client's test needs the real thing.
+    testImplementation(libs.json)
 }

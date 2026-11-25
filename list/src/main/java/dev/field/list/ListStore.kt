@@ -19,11 +19,17 @@ import java.time.LocalDate
 import java.util.concurrent.Executors
 
 /**
- * A space is a place lists live: the app's own storage ([tree] null), or a
- * folder the user picked. Point a space at a folder that a sync app keeps
- * identical on two phones and its lists are shared.
+ * A space is a place lists live. Three kinds:
+ * - the app's own storage ([tree] null, not [cloud]);
+ * - a folder the user picked ([tree]), which a sync app may keep identical
+ *   on two phones;
+ * - a folder in Drime ([cloud]): the lists are kept in app storage and
+ *   [ListSync] keeps them in step with that folder, which can be shared
+ *   with another Drime account.
  */
-data class Space(val id: String, val name: String, val tree: String?)
+data class Space(val id: String, val name: String, val tree: String?, val folderId: Long = 0, val folderHash: String = "") {
+    val cloud: Boolean get() = folderHash.isNotEmpty()
+}
 
 /** Finds a list again: its space and its file ([docId]: a file name, or a document id in a picked folder). */
 data class ListRef(val spaceId: String, val docId: String, val name: String) {
@@ -145,6 +151,7 @@ object ListStore {
                 return@launch
             }
             refreshNow(context)
+            if (space.cloud) ListSync.soon(context)
         }
     }
 
@@ -153,6 +160,7 @@ object ListStore {
             val space = _state.value.space(ref.spaceId) ?: return@launch
             delete(context, space, ref.docId)
             refreshNow(context)
+            if (space.cloud) ListSync.soon(context)
         }
     }
 
@@ -178,14 +186,44 @@ object ListStore {
         }
     }
 
-    /** Forgets a space. Its folder and files are not touched. */
+    /** Adds a Drime folder as a space. Its lists arrive with the next sync. */
+    fun addCloudSpace(context: Context, name: String, folderId: Long, folderHash: String) {
+        if (folderHash.isEmpty() || _state.value.spaces.any { it.folderId == folderId && it.cloud }) return
+        set(context) { it.copy(spaces = it.spaces + Space("d" + newId(), name.uppercase(), null, folderId, folderHash)) }
+        ListSync.now(context)
+    }
+
+    /** Forgets a space. A picked folder and a Drime folder are not touched; only this phone's copy of a Drime space goes. */
     fun removeSpace(context: Context, spaceId: String) {
         if (spaceId == LOCAL.id) return
         io.launch {
+            val space = _state.value.space(spaceId)
             set(context) { it.copy(spaces = it.spaces.filter { s -> s.id != spaceId }) }
+            if (space != null && space.cloud) {
+                synchronized(this@ListStore) { dir(context, space).deleteRecursively() }
+                ListSync.forget(context, spaceId)
+            }
             refreshNow(context)
         }
     }
+
+    // ---- for ListSync: the files of a Drime space, read and written under the same lock as every edit ----
+
+    internal fun <T> locked(block: () -> T): T = synchronized(this) { block() }
+
+    internal fun freshId(): String = newId()
+
+    /** File name -> text of every list in the space. */
+    internal fun mirror(context: Context, space: Space): Map<String, String>? = locked {
+        files(context, space)?.mapNotNull { (docId, name) -> read(context, space, docId)?.let { name to it } }?.toMap()
+    }
+
+    internal fun mirrorRead(context: Context, space: Space, name: String): String? =
+        if (localFile(context, space, name).exists()) read(context, space, name) else null
+
+    internal fun mirrorWrite(context: Context, space: Space, name: String, text: String): Boolean = write(context, space, name, text)
+
+    internal fun mirrorDelete(context: Context, space: Space, name: String) = delete(context, space, name)
 
     /** Shared text becomes a task in the default list (an "Inbox" is made if there is no list at all). */
     fun addShared(context: Context, text: String) {
@@ -272,19 +310,22 @@ object ListStore {
             s.copy(lists = lists)
         }
         Reminders.run(context, _state.value.lists)
+        if (space.cloud) ListSync.soon(context)
     }
 
     // ---- files: app storage or a picked folder ----
 
-    private fun localDir(context: Context): File = File(context.filesDir, DIR).apply { mkdirs() }
-    private fun localFile(context: Context, name: String): File = File(localDir(context), File(name).name)
+    /** Where a space without a picked folder keeps its files: one directory per Drime space, one for the phone's own. */
+    private fun dir(context: Context, space: Space): File =
+        File(context.filesDir, if (space.cloud) "$DIR-${space.id}" else DIR).apply { mkdirs() }
+    private fun localFile(context: Context, space: Space, name: String): File = File(dir(context, space), File(name).name)
     private fun isList(name: String) = name.endsWith(".md", ignoreCase = true)
     private fun docUri(tree: Uri, docId: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, docId)
 
     /** (doc id, file name) of every list file in the space; null if the folder cannot be read. */
     private fun files(context: Context, space: Space): List<Pair<String, String>>? {
         val tree = space.tree?.let { Uri.parse(it) }
-            ?: return (localDir(context).listFiles { f -> f.isFile && isList(f.name) } ?: emptyArray()).map { it.name to it.name }
+            ?: return (dir(context, space).listFiles { f -> f.isFile && isList(f.name) } ?: emptyArray()).map { it.name to it.name }
         return runCatching {
             val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
             val columns = arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE)
@@ -302,7 +343,7 @@ object ListStore {
     }
 
     private fun read(context: Context, space: Space, docId: String): String? = runCatching {
-        val tree = space.tree?.let { Uri.parse(it) } ?: return@runCatching localFile(context, docId).readText()
+        val tree = space.tree?.let { Uri.parse(it) } ?: return@runCatching localFile(context, space, docId).readText()
         context.contentResolver.openInputStream(docUri(tree, docId))?.use { input ->
             val out = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(16 * 1024)
@@ -320,7 +361,7 @@ object ListStore {
         if (tree == null) {
             // Temp file first, so a crash mid-write never truncates a list.
             return runCatching {
-                val target = localFile(context, docId)
+                val target = localFile(context, space, docId)
                 val temp = File(target.parentFile, target.name + ".tmp")
                 temp.writeText(text)
                 if (!temp.renameTo(target)) {
@@ -346,8 +387,8 @@ object ListStore {
             val stem = fileName.substringBeforeLast('.')
             var name = fileName
             var n = 2
-            while (localFile(context, name).exists()) name = "$stem ${n++}.md"
-            return if (runCatching { localFile(context, name).writeText("") }.isSuccess) name else null
+            while (localFile(context, space, name).exists()) name = "$stem ${n++}.md"
+            return if (runCatching { localFile(context, space, name).writeText("") }.isSuccess) name else null
         }
         return runCatching {
             val parent = docUri(tree, DocumentsContract.getTreeDocumentId(tree))
@@ -357,7 +398,7 @@ object ListStore {
 
     private fun delete(context: Context, space: Space, docId: String) {
         val tree = space.tree?.let { Uri.parse(it) }
-        if (tree == null) localFile(context, docId).delete()
+        if (tree == null) localFile(context, space, docId).delete()
         else runCatching { DocumentsContract.deleteDocument(context.contentResolver, docUri(tree, docId)) }
     }
 
@@ -372,7 +413,12 @@ object ListStore {
             o.optJSONArray("spaces")?.let { a ->
                 for (i in 0 until a.length()) {
                     val s = a.getJSONObject(i)
-                    spaces.add(Space(s.getString("id"), s.getString("name"), s.getString("tree")))
+                    spaces.add(
+                        Space(
+                            s.getString("id"), s.getString("name"), s.optString("tree").ifEmpty { null },
+                            s.optLong("folderId"), s.optString("folderHash"),
+                        )
+                    )
                 }
             }
             val picks = HashMap<String, Long>()
@@ -385,8 +431,11 @@ object ListStore {
         val o = JSONObject()
         val spaces = JSONArray()
         for (space in s.spaces) {
-            val tree = space.tree ?: continue // the local space is built in
-            spaces.put(JSONObject().put("id", space.id).put("name", space.name).put("tree", tree))
+            if (space.id == LOCAL.id) continue // built in
+            spaces.put(
+                JSONObject().put("id", space.id).put("name", space.name).put("tree", space.tree ?: "")
+                    .put("folderId", space.folderId).put("folderHash", space.folderHash)
+            )
         }
         o.put("spaces", spaces)
         val picks = JSONObject()

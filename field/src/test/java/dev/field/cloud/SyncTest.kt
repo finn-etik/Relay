@@ -1,11 +1,11 @@
-package dev.field.page
+package dev.field.cloud
 
-import dev.field.page.SyncAction.Conflict
-import dev.field.page.SyncAction.DeleteLocal
-import dev.field.page.SyncAction.DeleteRemote
-import dev.field.page.SyncAction.Download
-import dev.field.page.SyncAction.Forget
-import dev.field.page.SyncAction.Upload
+import dev.field.cloud.SyncAction.Conflict
+import dev.field.cloud.SyncAction.DeleteLocal
+import dev.field.cloud.SyncAction.DeleteRemote
+import dev.field.cloud.SyncAction.Download
+import dev.field.cloud.SyncAction.Forget
+import dev.field.cloud.SyncAction.Upload
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -73,7 +73,6 @@ class SyncTest {
     @Test fun namesHashesAndSummaries() {
         assertEquals("Draft (conflict 2026-11-25 1432).md", Sync.conflictName("Draft.md", "2026-11-25 1432"))
         assertEquals("notes (conflict x)", Sync.conflictName("notes", "x"))
-        assertTrue(Sync.isNote("A.MD") && Sync.isNote("b.txt") && !Sync.isNote("c.pdf") && !Sync.isNote(".hidden.md"))
         assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", Sync.hash("abc"))
         assertEquals("IN STEP", Sync.summary(emptyList()))
         assertEquals("1 UP / 2 DOWN / 1 REMOVED / 1 KEPT TWICE", Sync.summary(listOf(Upload("a"), Download("b", 1), Download("c", 2), DeleteLocal("d"), Conflict("e", 3), Forget("f"))))

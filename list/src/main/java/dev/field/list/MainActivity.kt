@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +78,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ListStore.load(applicationContext)
+        ListSync.load(applicationContext)
         if (savedInstanceState == null) receive(intent) // not again after a rotation
         fieldContent(FieldColors.SignalMagenta, FieldColors.SignalMagentaOnDark) { ListApp() }
     }
@@ -87,6 +92,22 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         ListStore.refresh(applicationContext)
+        ListSync.now(applicationContext)
+        ticker.postDelayed(tick, SYNC_EVERY_MS)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ticker.removeCallbacks(tick)
+    }
+
+    // While LIST is on screen, shared spaces are looked at once a minute, so the other person's ticks arrive.
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            ListSync.now(applicationContext)
+            ticker.postDelayed(this, SYNC_EVERY_MS)
+        }
     }
 
     /** Shared text becomes a task: the subject (or first line) is the title, further lines its steps. */
@@ -106,6 +127,15 @@ private const val HOME = "home"
 private const val DAY = "day"
 private const val PLANNED = "planned"
 private const val LIST_PREFIX = "list:"
+
+private const val SYNC_EVERY_MS = 60_000L
+
+/** "14:32" for a moment today, "25 NOV 14:32" otherwise. */
+private fun timeOfDay(at: Long): String {
+    val time = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault())
+    val pattern = if (time.toLocalDate() == LocalDate.now()) "HH:mm" else "d MMM HH:mm"
+    return time.format(java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ENGLISH)).uppercase()
+}
 
 @Composable
 fun ListApp() {
@@ -237,7 +267,7 @@ private fun Home(state: ListState, myDay: Int, planned: Int, overdue: Int, onOpe
                         name = ""
                     }
                 }
-                SectionHeader(space.name + if (space.tree != null) " / FOLDER" else "")
+                SectionHeader(space.name + if (space.cloud) " / DRIME" else if (space.tree != null) " / FOLDER" else "")
                 val lists = state.lists.filter { it.ref.spaceId == space.id }
                 if (space.id in state.unavailable) {
                     EmptyCard("FOLDER UNAVAILABLE", "THIS SPACE'S FOLDER WAS MOVED OR ITS ACCESS WITHDRAWN. THE FILES ARE UNTOUCHED. FORGET THE SPACE BELOW AND ADD THE FOLDER AGAIN.")
@@ -256,16 +286,21 @@ private fun Home(state: ListState, myDay: Int, planned: Int, overdue: Int, onOpe
         }
 
         // ---- spaces: set up once, so folded away ----
-        FieldFold("SPACES AND SHARING", Fmt.pad2(state.spaces.count { it.tree != null }) + " FOLDER SPACES") {
+        FieldFold(
+            "SPACES AND SHARING",
+            Fmt.pad2(state.spaces.count { it.cloud }) + " DRIME / " + Fmt.pad2(state.spaces.count { it.tree != null }) + " FOLDER",
+        ) {
+            DrimeSpaces(state)
+
             PaperCard {
-                FieldText("A SPACE IS A FOLDER OF LISTS", 12.sp, tracking = 1.sp)
+                FieldText("FOLDER SPACES", 12.sp, tracking = 1.sp)
                 FieldText(
-                    "TO SHARE LISTS: BOTH PHONES KEEP THE SAME FOLDER IN SYNC WITH A SYNC APP (FOR EXAMPLE SYNCTHING), " +
+                    "WITHOUT DRIME: BOTH PHONES KEEP THE SAME FOLDER IN SYNC WITH A SYNC APP (FOR EXAMPLE SYNCTHING), " +
                         "THEN EACH ADDS THAT FOLDER HERE. EVERY LIST IS A PLAIN TEXT FILE IN IT.",
                     9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
                 )
             }
-            FieldKey("ADD A SPACE (PICK A FOLDER)", { folderPicker.launch(null) }, Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp)
+            FieldKey("ADD A FOLDER SPACE", { folderPicker.launch(null) }, Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp)
             state.spaces.filter { it.tree != null }.forEachIndexed { i, space ->
                 FieldRow(
                     index = i + 1, selected = forget == space.id,
@@ -287,6 +322,166 @@ private fun Home(state: ListState, myDay: Int, planned: Int, overdue: Int, onOpe
 
         SkinLine("FIELD DESIGN LANGUAGE / SKIN: SIGNAL MAGENTA / EXT: INPUT ROW, CHECK ROW")
     }
+}
+
+/**
+ * Shared spaces through Drime: connect an account, turn a Drime folder into
+ * a space (a new one, one of yours, or one shared with you), and share a
+ * space with another Drime account.
+ */
+@Composable
+private fun ColumnScope.DrimeSpaces(state: ListState) {
+    val app = LocalContext.current.applicationContext
+    val accent = LocalAccent.current
+    val scope = rememberCoroutineScope()
+    val sync by ListSync.status.collectAsState()
+    var token by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
+    var folders by remember { mutableStateOf<ListSync.Folders?>(null) } // non-null = the folder chooser is open
+    var newName by remember { mutableStateOf("") }
+    var forget by remember { mutableStateOf("") }
+
+    /** Runs a Drime call off the main thread; [work] returns what went wrong, or null. */
+    fun drime(work: () -> String?) {
+        busy = true
+        note = ""
+        scope.launch {
+            note = withContext(Dispatchers.IO) { runCatching(work).getOrElse { (it.message ?: "FAILED").uppercase() } }.orEmpty()
+            busy = false
+        }
+    }
+
+    PaperCard {
+        FieldText(if (sync.connected) "DRIME / " + sync.account.uppercase() else "SHARE THROUGH DRIME", 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        FieldText(
+            when {
+                !sync.connected -> "A DRIME SPACE IS A FOLDER IN YOUR DRIME CLOUD. SHARE IT WITH ANOTHER DRIME ACCOUNT AND YOU BOTH SEE AND TICK THE SAME LISTS. " +
+                    "IN DRIME: ACCOUNT SETTINGS, DEVELOPERS, CREATE A TOKEN, AND PASTE IT HERE."
+                sync.running -> "SYNCING"
+                sync.lastAt > 0 -> "SYNCED " + timeOfDay(sync.lastAt) + ". CHANGES ARE SENT AS YOU MAKE THEM AND FETCHED EVERY MINUTE WHILE LIST IS OPEN."
+                else -> "NOT SYNCED YET"
+            },
+            9.sp, Modifier.padding(top = 4.dp), color = FieldColors.Dim, lineHeight = 14.sp,
+        )
+        if (sync.error.isNotEmpty()) FieldText(sync.error, 9.sp, Modifier.padding(top = 4.dp), color = accent, lineHeight = 14.sp)
+        if (note.isNotEmpty()) FieldText(note, 9.sp, Modifier.padding(top = 4.dp), color = accent, lineHeight = 14.sp)
+    }
+
+    if (!sync.connected) {
+        FieldInput(token, { token = it }, "DRIME ACCESS TOKEN")
+        FieldKey(
+            if (busy) "CONNECTING" else "CONNECT",
+            { drime { ListSync.connect(app, token).also { if (it == null) token = "" } } },
+            Modifier.fillMaxWidth(), height = 40.dp, size = 12.sp, variant = KeyVariant.Accent, enabled = token.isNotBlank() && !busy,
+        )
+        return
+    }
+
+    // ---- the spaces, each with a way to share it ----
+    state.spaces.filter { it.cloud }.forEachIndexed { i, space ->
+        key(space.id) {
+            var email by rememberSaveable { mutableStateOf("") }
+            FieldRow(
+                index = i + 1, selected = forget == space.id,
+                onClick = {
+                    // Two taps: forgetting a space removes its lists from this phone (they stay in Drime).
+                    if (forget == space.id) {
+                        ListStore.removeSpace(app, space.id)
+                        forget = ""
+                    } else {
+                        forget = space.id
+                    }
+                },
+                trailing = if (forget == space.id) "TAP TO CONFIRM" else "FORGET",
+            ) {
+                FieldText(space.name, 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FieldInput(email, { email = it }, "SHARE WITH (DRIME E-MAIL)", Modifier.weight(1f), height = 44.dp)
+                FieldKey(
+                    "SHARE",
+                    {
+                        val to = email
+                        drime { ListSync.share(app, space, to) ?: "SHARED ${space.name} WITH ${to.trim().uppercase()}. THEY ADD IT IN THEIR LIST UNDER \"SHARED WITH YOU\"." }
+                        email = ""
+                    },
+                    Modifier.weight(0.4f), height = 44.dp, size = 11.sp, enabled = email.contains('@') && !busy,
+                )
+            }
+        }
+    }
+
+    // ---- adding a space: choose a Drime folder ----
+    val chooser = folders
+    if (chooser == null) {
+        FieldKey(
+            if (busy) "ASKING DRIME" else "ADD A DRIME SPACE",
+            {
+                drime {
+                    folders = ListSync.folders(app)
+                    null
+                }
+            },
+            Modifier.fillMaxWidth(), height = 44.dp, size = 12.sp, variant = KeyVariant.Accent, enabled = !busy,
+        )
+    } else {
+        val taken = state.spaces.filter { it.cloud }.map { it.folderId }.toSet()
+        fun add(name: String, id: Long, hash: String) {
+            ListStore.addCloudSpace(app, name, id, hash)
+            folders = null
+        }
+        SectionHeader("NEW SPACE")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FieldInput(newName, { newName = it }, "NAME, E.G. HOME", Modifier.weight(1f), height = 44.dp)
+            FieldKey(
+                "CREATE",
+                {
+                    val name = newName.trim()
+                    drime {
+                        val folder = ListSync.createFolder(app, name)
+                        add(name, folder.id, folder.hash)
+                        newName = ""
+                        null
+                    }
+                },
+                Modifier.weight(0.4f), height = 44.dp, size = 11.sp, variant = KeyVariant.Accent, enabled = newName.isNotBlank() && !busy,
+            )
+        }
+        val shared = chooser.shared.filter { it.id !in taken }
+        if (shared.isNotEmpty()) {
+            SectionHeader("SHARED WITH YOU")
+            shared.forEachIndexed { i, f ->
+                FieldRow(index = i + 1, selected = false, onClick = { add(f.name, f.id, f.hash) }, trailing = "ADD") {
+                    FieldText(f.name.uppercase(), 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        val mine = chooser.mine.filter { it.id !in taken }
+        if (mine.isNotEmpty()) {
+            SectionHeader("YOUR DRIME FOLDERS")
+            mine.take(30).forEachIndexed { i, f ->
+                FieldRow(index = i + 1, selected = false, onClick = { add(f.name, f.id, f.hash) }, trailing = "ADD") {
+                    FieldText(f.name.uppercase(), 12.sp, tracking = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        FieldKey("CANCEL", { folders = null }, Modifier.fillMaxWidth(), height = 40.dp, size = 11.sp)
+    }
+
+    var sure by remember { mutableStateOf(false) }
+    FieldKey(
+        if (sure) "TAP AGAIN TO DISCONNECT (LISTS STAY, SYNC STOPS)" else "DISCONNECT DRIME",
+        {
+            if (sure) {
+                sure = false
+                ListSync.disconnect(app)
+            } else {
+                sure = true
+            }
+        },
+        Modifier.fillMaxWidth(), height = 40.dp, size = 10.sp,
+    )
 }
 
 // ---------------------------------------------------------------- a list, MY DAY, PLANNED
@@ -346,7 +541,7 @@ private fun TaskScreen(
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FieldKey("< LISTS", onBack, Modifier.weight(1f), height = 40.dp, size = 12.sp)
-            FieldKey("SYNC", { ListStore.refresh(app) }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
+            FieldKey("SYNC", { ListStore.refresh(app); ListSync.now(app) }, Modifier.weight(1f), height = 40.dp, size = 12.sp)
         }
 
         if (state.notice.isNotEmpty()) {

@@ -34,9 +34,9 @@ only on AndroidX. Apps never depend on each other.
 | CAL | `CalLogic.kt` | `CalendarRepo.kt` (system calendar provider) | none |
 | DIAL | `Dial.kt` (`DialState`, `Dial`, `Playlist`) | `DialStore.kt` | `DialService.kt` (Media3 playback, media session) |
 | GATE | `GateState.kt` | `GateStore.kt` | alarm + notification receivers in `GateStore.kt`; kit links in `GateLink.kt` |
-| LIST | `Tasks.kt`, `TaskFile.kt` | `ListStore.kt` (lists as files in spaces) | `Reminders.kt` (alarm + receiver) |
+| LIST | `Tasks.kt`, `TaskFile.kt` | `ListStore.kt` (lists as files in spaces), `ListSync.kt` (Drime spaces) | `Reminders.kt` (alarm + receiver) |
 | LORE | `Zim.kt` (archive reader), `Text.kt`, `Bm25.kt`, `Ask.kt` (retrieval, prompt), `Markdown.kt`, `Lore.kt` (catalogue, chats) | `LoreStore.kt` | none; `Llm.kt` wraps the model runtime, the system DownloadManager fetches the large files |
-| PAGE | `Text.kt`, `Markdown.kt`, `Html.kt`, `Style.kt`, `PageState.kt`, `Sync.kt` (sync rules) | `PageStore.kt` (notes as files), `PageSync.kt` (sync runner; `Drime.kt` is the cloud client) | none |
+| PAGE | `Text.kt`, `Markdown.kt`, `Html.kt`, `Style.kt`, `PageState.kt`, (sync rules: `field/…/cloud/Sync.kt`) | `PageStore.kt` (notes as files), `PageSync.kt` (sync runner; the cloud client is `field/…/cloud/Drime.kt`) | none |
 | REEL | `Audio.kt` | `ReelStore.kt` | `RecorderService.kt`; `Transcriber.kt`, `ParakeetModel.kt`, `M4a.kt` |
 | TALLY | `Calc.kt` | `LogStore` in `MainActivity.kt` | none |
 

@@ -20,7 +20,7 @@ Language), plus Relay. One Gradle build, one APK per app.
 | `page/` | PAGE | Focused Markdown writing. | sage |
 | `reel/` | REEL | Voice recorder with on-device transcription. | red |
 | `tally/` | TALLY | Calculator. | amber |
-| `field/` | (library) | Shared UI components and palette for all Field apps. | |
+| `field/` | (library) | Shared UI components and palette for all Field apps. Also `dev.field.cloud`: the Drime client and the sync rules PAGE and LIST share. | |
 | `build-logic/` | (build) | Gradle convention plugins: the build setup the modules share. | |
 
 More detail: `docs/ARCHITECTURE.md`. Why things are the way they are, and

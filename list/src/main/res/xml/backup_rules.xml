@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sync settings hold the Drime access token: never part of a backup. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="list_sync.xml" />
+</full-backup-content>

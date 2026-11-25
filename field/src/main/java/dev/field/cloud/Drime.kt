@@ -1,4 +1,4 @@
-package dev.field.page
+package dev.field.cloud
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,12 +22,13 @@ data class DrimeEntry(
 class DrimeException(val code: Int, message: String) : IOException(message)
 
 /**
- * The few calls PAGE needs from the Drime Cloud API
+ * The few calls the kit needs from the Drime Cloud API
  * (https://docs.drime.cloud), over plain HttpURLConnection: who am I, list a
- * folder, make a folder, upload, download, rename, move to the trash.
+ * folder, make a folder, upload, download, rename, share, move to the trash.
+ * PAGE syncs notes with it, LIST shares lists through it.
  *
  * Authentication is a personal access token the user creates in Drime
- * (Account Settings, Developers) and pastes into PAGE.
+ * (Account Settings, Developers) and pastes into the app.
  *
  * Blocking; call from a background thread.
  */
@@ -39,12 +40,23 @@ class Drime(private val token: String, private val base: String = "https://app.d
         return (json.optJSONObject("user") ?: json).optString("email").ifEmpty { "DRIME" }
     }
 
+    /** Folders other people have shared with this account. */
+    fun sharedFolders(): List<DrimeEntry> = list(null, "&sharedOnly=true").filter { it.folder }
+
+    /** Gives the people at [emails] full use of a file or folder (see, change, download). */
+    fun share(id: Long, emails: List<String>) {
+        val body = JSONObject().put("emails", JSONArray(emails)).put("permissions", JSONArray(listOf("view", "edit", "download")))
+        call("POST", "/file-entries/$id/share", body.toString())
+    }
+
     /** Everything directly inside a folder ([folderHash] null = the top level), all pages. */
-    fun list(folderHash: String?): List<DrimeEntry> {
+    fun list(folderHash: String?): List<DrimeEntry> = list(folderHash, "")
+
+    private fun list(folderHash: String?, filter: String): List<DrimeEntry> {
         val out = ArrayList<DrimeEntry>()
         var page = 1
         while (true) {
-            val query = "?workspaceId=0&perPage=100&page=$page&orderBy=name&orderDir=asc" +
+            val query = "?workspaceId=0&perPage=100&page=$page&orderBy=name&orderDir=asc" + filter +
                 if (folderHash != null) "&folderId=" + URLEncoder.encode(folderHash, "UTF-8") else ""
             val json = JSONObject(call("GET", "/drive/file-entries$query"))
             val data = json.optJSONArray("data") ?: JSONArray()
@@ -64,7 +76,7 @@ class Drime(private val token: String, private val base: String = "https://app.d
 
     /** Uploads [bytes] as [name] into folder [parentId]. Returns the entry Drime created. */
     fun upload(parentId: Long, name: String, bytes: ByteArray, modified: Long): DrimeEntry {
-        val boundary = "page-" + java.lang.Long.toHexString(System.nanoTime())
+        val boundary = "field-" + java.lang.Long.toHexString(System.nanoTime())
         val out = ByteArrayOutputStream(bytes.size + 512)
         fun field(key: String, value: String) =
             out.write("--$boundary\r\nContent-Disposition: form-data; name=\"$key\"\r\n\r\n$value\r\n".toByteArray())
@@ -142,7 +154,7 @@ class Drime(private val token: String, private val base: String = "https://app.d
         c.connectTimeout = 15_000
         c.readTimeout = 60_000
         c.setRequestProperty("Accept", "application/json")
-        c.setRequestProperty("User-Agent", "PAGE (Field kit)")
+        c.setRequestProperty("User-Agent", "Field kit")
         if (authorised) c.setRequestProperty("Authorization", "Bearer $token")
         return c
     }

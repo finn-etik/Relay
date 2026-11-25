@@ -1,4 +1,4 @@
-package dev.field.page
+package dev.field.cloud
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -56,6 +56,10 @@ class DrimeTest {
                        {"id":11,"name":"sub","type":"folder","hash":"c3Vi","file_size":0,"updated_at":"2026-11-24T10:00:00.000000Z"}],
                        "current_page":1,"last_page":2}""",
                 )
+                path.startsWith("/drive/file-entries") && "sharedOnly=true" in path -> x.reply(
+                    200, """{"data":[{"id":30,"name":"Home","type":"folder","hash":"aG9tZQ","file_size":0},{"id":31,"name":"x.md","type":"text","hash":"eA","file_size":1}],"current_page":1,"last_page":1}""",
+                )
+                path == "/file-entries/30/share" -> x.reply(200, """{"status":"success","users":[{"id":2,"email":"p@example.org"}]}""")
                 path.startsWith("/drive/file-entries") && "page=2" in path -> x.reply(
                     200, """{"data":[{"id":12,"name":"b.txt","type":"text","hash":"Yg","file_size":3,"created_at":"2026-11-20T10:00:00.000000Z"}],"current_page":2,"last_page":2}""",
                 )
@@ -117,6 +121,13 @@ class DrimeTest {
         assertEquals("# Title\n\nBody text.", String(drime().download("aGFzaA")))
         assertTrue("storage auth=none" in seen)
         assertEquals("direct", String(drime().download("direct")))
+    }
+
+    @Test fun findsSharedFoldersAndShares() {
+        assertEquals(listOf("Home"), drime().sharedFolders().map { it.name })
+        drime().share(30, listOf("p@example.org"))
+        assertEquals("POST /file-entries/30/share", seen.last())
+        assertTrue(bodies.last().contains("\"emails\":[\"p@example.org\"]") && bodies.last().contains("\"edit\""))
     }
 
     @Test fun createsFoldersTrashesAndReportsErrorsInWords() {

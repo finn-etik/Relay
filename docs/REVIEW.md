@@ -455,3 +455,22 @@ Not verified, to check on a phone:
   what an upload does to an existing file of the same name (both cases
   are handled), and whether `updated_at` is stable between listings.
   First test with a few throwaway notes.
+
+## LIST 1.1: spaces in Drime (2026-11-25)
+
+The Drime client and the sync rules moved from PAGE into the shared
+library (`dev.field.cloud`); LIST uses them for shared spaces, merging
+lists task by task where PAGE keeps two notes. Folder spaces (Syncthing
+and the like) still work as before.
+
+Not verified, to check on two phones:
+
+- Sharing between two Drime accounts rests on three things Drime's
+  documentation does not spell out: that a folder shared with "edit"
+  shows up for the other account under `sharedOnly=true`, that its
+  content can be listed by the folder's hash, and that the other account
+  can upload into it. If any of these fails, the fallback that needs none
+  of them is one Drime account on both phones.
+- Drime's rate limits are not published. LIST makes about four calls a
+  minute while open; if Drime answers "slow down", lengthen
+  `SYNC_EVERY_MS`.
