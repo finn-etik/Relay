@@ -98,7 +98,7 @@ class Drime(private val token: String, private val base: String = "https://app.d
                 if (code in 300..399) {
                     val next = c.getHeaderField("Location") ?: throw DrimeException(code, "Redirect without a destination")
                     val target = URL(URL(url), next)
-                    authorised = authorised && target.host == URL(base).host
+                    authorised = authorised && target.authority == URL(base).authority
                     url = target.toString()
                     return@repeat
                 }
