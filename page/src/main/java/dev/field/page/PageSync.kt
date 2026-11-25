@@ -161,7 +161,7 @@ object PageSync {
                     val note = local.getValue(name)
                     val entry = drime.upload(folderId, name, note.text.toByteArray(Charsets.UTF_8), note.modified)
                     // Whether Drime replaces a file of the same name or keeps both is not documented: handle both.
-                    if (action.replaces != null && entry.id != action.replaces) drime.trash(listOf(action.replaces))
+                    drime.trash(listOfNotNull(action.replaces).filter { it != entry.id })
                     if (entry.name != name) runCatching { drime.rename(entry.id, name) }
                     memory[name] = Synced(Sync.hash(note.text), entry.id, stamp(entry))
                     uploaded[name] = entry.id
